@@ -82,7 +82,7 @@ const IconFlash = ({ className }) => (<svg className={className} fill="none" str
 const Navbar = () => {
     const navigate = useNavigate();
     const { cartCount = 0, wishlistCount = 0 } = useCart();
-    const { isAdmin, user } = useAuth();
+    const { user } = useAuth();
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");

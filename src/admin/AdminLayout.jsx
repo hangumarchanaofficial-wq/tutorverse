@@ -155,7 +155,7 @@ function initialInboxUnread() {
 }
 
 function AdminLayout() {
-  const { user, loading, isAdmin, adminBypass, logout } = useAuth();
+  const { user, loading, isAdmin, adminBypass } = useAuth();
   const location = useLocation();
   const [inboxUnread, setInboxUnread] = useState(initialInboxUnread);
   const [sidebarOpen, setSidebarOpen] = useState(false);
