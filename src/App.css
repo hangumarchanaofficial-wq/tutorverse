@@ -1,0 +1,166 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+body {
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-headline,
+.font-display {
+    font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+.font-ui {
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.trustbar-mask {
+    position: relative;
+}
+
+.trustbar-mask::before,
+.trustbar-mask::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2.75rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.trustbar-mask::before {
+    left: 0;
+    background: linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0));
+}
+
+.trustbar-mask::after {
+    right: 0;
+    background: linear-gradient(to left, #ffffff, rgba(255, 255, 255, 0));
+}
+
+.trustbar-marquee {
+    animation: trustbar-scroll 20s linear infinite;
+}
+
+.trustbar-mask:hover .trustbar-marquee {
+    animation-play-state: paused;
+}
+
+@keyframes trustbar-scroll {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+@media (max-width: 640px) {
+    .trustbar-mask::before,
+    .trustbar-mask::after {
+        width: 1.25rem;
+    }
+
+    .trustbar-marquee {
+        animation-duration: 16s;
+    }
+}
+
+.product-copy {
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1.95;
+    letter-spacing: 0.01em;
+}
+
+.product-copy p + p {
+    margin-top: 1.4rem;
+}
+
+.product-copy p:first-child::first-letter {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: #0a0f1a;
+    float: left;
+    line-height: 1;
+    margin-right: 0.35rem;
+    margin-top: 0.15rem;
+}
+
+.product-copy h3 {
+    margin-top: 2.4rem;
+    margin-bottom: 1rem;
+    color: #0a0f1a;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+    position: relative;
+    padding-bottom: 0.75rem;
+}
+
+.product-copy h3::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 3rem;
+    height: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(to right, #c8a951, #dfc475);
+}
+
+.product-copy ul {
+    margin: 1.1rem 0 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.product-copy li {
+    position: relative;
+    padding-left: 1.6rem;
+    transition: transform 0.2s ease;
+}
+
+.product-copy li:hover {
+    transform: translateX(4px);
+}
+
+.product-copy li + li {
+    margin-top: 0.65rem;
+}
+
+.product-copy li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.7rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #c8a951, #0D9F6E);
+    box-shadow: 0 0 6px rgba(200, 169, 81, 0.3);
+}
+
+/* Number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}

@@ -1,0 +1,19 @@
+version: 1.0
+runtime: nodejs18
+
+build:
+  commands:
+    pre-build:
+      - npm ci --prefix backend
+    build:
+      - echo "Backend build step completed"
+
+run:
+  runtime-version: 18
+  command: cd backend && npm run start
+  network:
+    port: 4000
+    env: PORT
+  env:
+    - name: NODE_ENV
+      value: production

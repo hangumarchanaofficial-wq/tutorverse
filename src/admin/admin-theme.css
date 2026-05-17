@@ -1,0 +1,160 @@
+.admin-theme-root {
+  --admin-app-bg: #f6f7fb;
+  --admin-main-bg: #f6f7fb;
+  --admin-text: #101828;
+  background: var(--admin-app-bg);
+  color: var(--admin-text);
+}
+
+.admin-theme-root main {
+  background: var(--admin-main-bg);
+}
+
+.admin-theme-light {
+  color-scheme: light;
+}
+
+.admin-theme-dark {
+  color-scheme: dark;
+  --admin-app-bg: #040507;
+  --admin-main-bg: #040507;
+  --admin-text: #f8fafc;
+}
+
+/* ---- LIGHT THEME OVERRIDES (legacy dark classes -> light) ---- */
+.admin-theme-light .bg-\[\#070b14\] { background-color: #f6f7fb !important; }
+.admin-theme-light .bg-\[\#0f1726\] { background-color: #ffffff !important; }
+.admin-theme-light .bg-\[\#0f1726\]\/80 { background-color: #ffffff !important; }
+.admin-theme-light .bg-\[\#101827\]\/95 { background-color: #ffffff !important; }
+.admin-theme-light .bg-\[\#121b2e\] { background-color: #ffffff !important; }
+.admin-theme-light .bg-\[\#182238\] { background-color: #f8fafc !important; }
+.admin-theme-light .bg-\[\#182238\]\/60 { background-color: #f8fafc !important; }
+.admin-theme-light .hover\:bg-\[\#182238\]:hover { background-color: #f2f4f7 !important; }
+.admin-theme-light .bg-\[\#263145\] { background-color: #d0d5dd !important; }
+
+.admin-theme-light .border-\[\#263145\] { border-color: #eaecf0 !important; }
+.admin-theme-light .divide-\[\#263145\]\/60 > :not([hidden]) ~ :not([hidden]) { border-color: #eaecf0 !important; }
+.admin-theme-light .text-\[\#f8fafc\] { color: #111827 !important; }
+.admin-theme-light .text-\[\#8b95a7\] { color: #667085 !important; }
+.admin-theme-light .text-\[\#8b95a7\]\/60 { color: #98a2b3 !important; }
+.admin-theme-light .text-\[\#d8b84f\] { color: #d97706 !important; }
+.admin-theme-light .text-\[\#3d4a63\] { color: #98a2b3 !important; }
+
+/* ---- DARK THEME OVERRIDES (new light pages -> dark) ---- */
+.admin-theme-dark .bg-white { background-color: #121b2e !important; }
+.admin-theme-dark .bg-\[\#ffffff\] { background-color: #121b2e !important; }
+.admin-theme-dark .bg-\[\#f7f8fa\] { background-color: #0f1726 !important; }
+.admin-theme-dark .bg-\[\#f6f7fb\] { background-color: #070b14 !important; }
+.admin-theme-dark .bg-\[\#fbfcfd\] { background-color: #0f1726 !important; }
+.admin-theme-dark .bg-\[\#fafbfc\] { background-color: #182238 !important; }
+/* Dashboard & other “light gray” shells (were not remapped → light strip behind dark cards) */
+.admin-theme-dark .bg-\[\#f4f5f7\] { background-color: transparent !important; }
+.admin-theme-dark .bg-\[\#f9fafb\] { background-color: #182238 !important; }
+.admin-theme-dark .bg-\[\#f1f5f9\] { background-color: #0f1726 !important; }
+
+.admin-theme-dark .border-\[\#eceff3\],
+.admin-theme-dark .border-\[\#edf0f2\],
+.admin-theme-dark .border-\[\#eef0f2\],
+.admin-theme-dark .border-\[\#ebeef1\],
+.admin-theme-dark .border-\[\#eaecf0\],
+.admin-theme-dark .border-\[\#e5e7eb\],
+.admin-theme-dark .border-\[\#f1f3f5\],
+.admin-theme-dark .border-\[\#f2f4f6\],
+.admin-theme-dark .border-\[\#f3f4f6\] { border-color: #263145 !important; }
+
+.admin-theme-dark .text-\[\#101828\],
+.admin-theme-dark .text-\[\#111827\],
+.admin-theme-dark .text-\[\#344054\] { color: #f8fafc !important; }
+.admin-theme-dark .text-\[\#4b5563\],
+.admin-theme-dark .text-\[\#667085\],
+.admin-theme-dark .text-\[\#98a2b3\],
+.admin-theme-dark .text-\[\#9aa1ad\],
+.admin-theme-dark .text-\[\#8c94a3\] { color: #8b95a7 !important; }
+.admin-theme-dark .text-\[\#374151\] { color: #e5e7eb !important; }
+.admin-theme-dark .text-\[\#1f2937\] { color: #f8fafc !important; }
+.admin-theme-dark .text-\[\#6b7280\] { color: #98a2b3 !important; }
+.admin-theme-dark .text-\[\#9ca3af\] { color: #8b95a7 !important; }
+
+.admin-theme-dark .hover\:bg-\[\#f3f4f6\]:hover { background-color: #182238 !important; }
+.admin-theme-dark .hover\:bg-gray-100:hover { background-color: #182238 !important; }
+.admin-theme-dark .divide-\[\#f9fafb\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1f232b !important;
+}
+.admin-theme-dark .hover\:bg-\[\#f6f7f8\]:hover { background-color: #182238 !important; }
+.admin-theme-dark .hover\:bg-\[\#fafbfc\]:hover { background-color: #182238 !important; }
+
+.admin-theme-dark .shadow-\[0_1px_2px_rgba\(16\,24\,40\,0\.04\)\,0_10px_20px_rgba\(16\,24\,40\,0\.03\)\] {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* ---- Premium layout treatment ---- */
+.admin-sidebar,
+.admin-topbar,
+.admin-panel,
+.admin-footer {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.admin-theme-dark .admin-sidebar {
+  background: linear-gradient(180deg, #090a0c 0%, #07080a 100%) !important;
+  border-right-color: #1d2026 !important;
+}
+
+.admin-theme-dark .admin-topbar {
+  background: #08090b !important;
+  border-bottom-color: #1d2026 !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.admin-theme-dark .admin-content {
+  background: radial-gradient(1000px 280px at 30% -10%, rgba(255, 255, 255, 0.05), transparent 50%), #030406 !important;
+}
+
+.admin-theme-dark .admin-footer {
+  background: #08090b !important;
+  border-top-color: #1d2026 !important;
+}
+
+.admin-theme-dark .admin-products-page h1 {
+  color: #f8fafc !important;
+  letter-spacing: -0.01em;
+}
+
+.admin-theme-dark .admin-tip {
+  background: #0a0b0f !important;
+  border-color: #1f232b !important;
+  color: #c1c7d0 !important;
+}
+
+.admin-theme-dark .admin-panel {
+  background: #06070a !important;
+  border-color: #1f232b !important;
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.admin-theme-dark .admin-filterbar {
+  background: linear-gradient(180deg, #0b0d12 0%, #090b10 100%) !important;
+  border-bottom-color: #1f232b !important;
+}
+
+.admin-theme-dark .admin-table thead {
+  background: #090b10 !important;
+}
+
+.admin-theme-dark .admin-table tbody tr {
+  border-bottom-color: #1f232b !important;
+}
+
+.admin-theme-dark .admin-table tbody tr:hover {
+  background: #0f1116 !important;
+}
+
+.admin-theme-dark .admin-table td,
+.admin-theme-dark .admin-table th {
+  color: #e5e7eb;
+}
+
+.admin-theme-dark .admin-table td.text-\[\#98a2b3\],
+.admin-theme-dark .admin-table td.text-\[\#9aa1ad\] {
+  color: #9ea9bf !important;
+}
