@@ -1,7 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Package,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  PageHeader,
+  StatCard,
+  Select,
+  Input,
+  Btn,
+  ConfirmDialog,
+  ProductThumbnail,
+  Skeleton,
+  SkeletonRows,
+  useToast,
+  formatLkr,
+  fmtDate,
+} from "../../admin/components/ui";
 import { categories as mockCategories, products as mockProducts } from "../../admin/data/mockData";
-import { deleteAdminProduct, fetchAdminProducts, patchAdminProduct } from "../../services/adminApi";
+import { deleteAdminProduct, fetchAdminProducts } from "../../services/adminApi";
+
+const TIP_DISMISS_KEY = "admin.products.tip.dismissed";
 
 const SORT_OPTIONS = [
   { value: "default", label: "Sort by (Default)" },
@@ -15,40 +46,49 @@ const STATUS_OPTIONS = [
   { value: "", label: "All Status" },
   { value: "in-stock", label: "In stock" },
   { value: "out-stock", label: "Out of stock" },
+  { value: "low-stock", label: "Low stock" },
 ];
 
-const ENTRY_OPTIONS = [10, 20, 30, 50];
+const PAGE_SIZE_OPTIONS = [
+  { value: "10", label: "10" },
+  { value: "20", label: "20" },
+  { value: "30", label: "30" },
+  { value: "50", label: "50" },
+];
 
-const formatMoney = (value) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
+const cardIconClass = "h-[18px] w-[18px]";
 
-const formatCompactNumber = (value) =>
-  new Intl.NumberFormat("en-US").format(value || 0);
+function isLowStock(product) {
+  const stock = product.stock ?? 0;
+  const threshold = product.lowStockThreshold ?? 10;
+  return stock > 0 && stock <= threshold;
+}
 
-const formatDate = (dateLike) => {
-  const d = new Date(dateLike || Date.now());
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
-};
-
-function ProductImage({ src, alt }) {
-  const [failed, setFailed] = useState(false);
-  const fallback = "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=80&h=80&fit=crop&auto=format";
+function StockBadge({ product }) {
+  const stock = product.stock ?? 0;
+  if (stock <= 0 || product.isActive === false) {
+    return (
+      <span className="inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-[#f87171]/15 text-[#f87171]">
+        Out of stock
+      </span>
+    );
+  }
+  if (isLowStock(product)) {
+    return (
+      <span className="inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-[#f59e0b]/15 text-[#f59e0b]">
+        Low stock
+      </span>
+    );
+  }
   return (
-    <img
-      src={!failed && src ? src : fallback}
-      alt={alt}
-      onError={() => setFailed(true)}
-      className="h-10 w-10 rounded-md object-cover ring-1 ring-[#eef0f2]"
-    />
+    <span className="inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-[#34d399]/15 text-[#34d399]">
+      In stock
+    </span>
   );
 }
 
-const iconBtn = "rounded-full p-2 transition hover:bg-[#f6f7f8] hover:shadow-sm";
-
 export default function ProductsList() {
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -57,6 +97,11 @@ export default function ProductsList() {
   const [sortBy, setSortBy] = useState("default");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+  const [tipDismissed, setTipDismissed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem(TIP_DISMISS_KEY) === "1"
+  );
+  const [confirmDlg, setConfirmDlg] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +114,7 @@ export default function ProductsList() {
         stock: p.stock ?? p.stock_qty ?? 0,
         quantity: p.stock ?? p.stock_qty ?? 0,
         sales: p.salesCount || 0,
+        lowStockThreshold: p.lowStockThreshold ?? p.low_stock_threshold ?? 10,
       }));
       setItems(remoteItems.length ? remoteItems : mockProducts);
     } catch {
@@ -87,6 +133,19 @@ export default function ProductsList() {
     []
   );
 
+  const counts = useMemo(() => {
+    let inStock = 0;
+    let outStock = 0;
+    let lowStock = 0;
+    items.forEach((p) => {
+      const stock = p.stock ?? 0;
+      if (stock <= 0 || p.isActive === false) outStock += 1;
+      else if (isLowStock(p)) lowStock += 1;
+      else inStock += 1;
+    });
+    return { total: items.length, inStock, outStock, lowStock };
+  }, [items]);
+
   const filtered = useMemo(() => {
     let list = [...items];
     const q = search.trim().toLowerCase();
@@ -95,12 +154,13 @@ export default function ProductsList() {
         (p) =>
           p.name?.toLowerCase().includes(q) ||
           p.sku?.toLowerCase().includes(q) ||
-          p.id?.toString().toLowerCase().includes(q)
+          String(p.id).toLowerCase().includes(q)
       );
     }
     if (category) list = list.filter((p) => p.categoryId === category);
-    if (status === "in-stock") list = list.filter((p) => (p.stock ?? 0) > 0);
-    if (status === "out-stock") list = list.filter((p) => (p.stock ?? 0) <= 0);
+    if (status === "in-stock") list = list.filter((p) => (p.stock ?? 0) > 0 && p.isActive !== false);
+    if (status === "out-stock") list = list.filter((p) => (p.stock ?? 0) <= 0 || p.isActive === false);
+    if (status === "low-stock") list = list.filter((p) => isLowStock(p) && p.isActive !== false);
 
     if (sortBy === "newest") list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     if (sortBy === "price-high") list.sort((a, b) => (b.salePrice || b.price || 0) - (a.salePrice || a.price || 0));
@@ -110,6 +170,11 @@ export default function ProductsList() {
     return list;
   }, [items, search, category, status, sortBy]);
 
+  const filteredValue = useMemo(
+    () => filtered.reduce((sum, p) => sum + (p.salePrice || p.price || 0), 0),
+    [filtered]
+  );
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
@@ -117,234 +182,360 @@ export default function ProductsList() {
     setPage(1);
   }, [search, category, status, sortBy, pageSize]);
 
-  const handleDelete = async (product) => {
-    if (!window.confirm(`Delete "${product.name}"?`)) return;
+  const dismissTip = () => {
+    setTipDismissed(true);
     try {
-      await deleteAdminProduct(product.id);
+      localStorage.setItem(TIP_DISMISS_KEY, "1");
     } catch {
-      // Keep UI responsive even if backend deletion fails
+      /* ignore */
     }
-    setItems((prev) => prev.filter((p) => p.id !== product.id));
   };
 
-  const handleToggleActive = async (product) => {
-    const patch = { isActive: !product.isActive };
-    try {
-      await patchAdminProduct(product.id, patch);
-    } catch {
-      // Proceed with local state for smoother UX
-    }
-    setItems((prev) => prev.map((p) => (p.id === product.id ? { ...p, ...patch } : p)));
+  const handleDelete = (product) => {
+    setConfirmDlg({
+      title: "Delete product",
+      message: `Delete "${product.name}"? This cannot be undone.`,
+      onConfirm: async () => {
+        setDeleting(true);
+        try {
+          await deleteAdminProduct(product.id);
+          setItems((prev) => prev.filter((p) => p.id !== product.id));
+          toast?.("Product deleted");
+        } catch {
+          toast?.("Failed to delete product", "error");
+        } finally {
+          setDeleting(false);
+          setConfirmDlg(null);
+        }
+      },
+    });
   };
+
+  const setStatusQuick = useCallback((value) => {
+    setStatus((prev) => (prev === value ? "" : value));
+  }, []);
+
+  const actionBtnClass =
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#263145] text-[#8b95a7] transition hover:border-[#d8b84f]/50 hover:text-[#d8b84f]";
 
   return (
-    <div className="admin-products-page space-y-5">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-[34px] font-semibold tracking-[-0.02em] text-[#101828]">All Products</h1>
-        </div>
-        <p className="text-xs text-[#98a2b3]">Dashboard &gt; Product &gt; All products</p>
-      </div>
+    <div className="admin-products-page space-y-6">
+      <PageHeader
+        title="All Products"
+        subtitle="Manage catalog, stock, and pricing"
+        badge={
+          <span className="rounded-full bg-[#d8b84f]/15 px-2.5 py-0.5 text-xs font-semibold text-[#d8b84f]">
+            {items.length}
+          </span>
+        }
+        actions={
+          <div className="rounded-lg border border-[#263145] bg-[#121b2e] px-3 py-2 text-xs">
+            <span className="text-[#8b95a7]">Filtered value </span>
+            <span className="font-semibold tabular-nums text-[#f8fafc]">{formatLkr(filteredValue)}</span>
+          </div>
+        }
+      />
 
-      <div className="admin-tip flex items-center gap-2 rounded-lg border border-[#f0e8dd] bg-[#fffaf5] px-4 py-2.5 text-sm text-[#667085]">
-        <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#f59e0b]" fill="none" stroke="currentColor" strokeWidth="1.9">
-          <path d="M12 8v4m0 4h.01" strokeLinecap="round" />
-          <path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.72 3h16.96a2 2 0 0 0 1.72-3L13.7 3.8a2 2 0 0 0-3.4 0Z" />
-        </svg>
-        <span>Tip search by Product ID: Each product is provided with a unique ID, which you can rely on to find the exact product you need.</span>
-      </div>
+      <ConfirmDialog
+        open={!!confirmDlg}
+        title={confirmDlg?.title || ""}
+        message={confirmDlg?.message || ""}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={confirmDlg?.onConfirm}
+        onCancel={() => !deleting && setConfirmDlg(null)}
+        busy={deleting}
+      />
 
-      <div className="admin-panel overflow-hidden rounded-2xl border border-[#edf0f2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_10px_20px_rgba(16,24,40,0.03)]">
-        <div className="admin-filterbar flex flex-wrap items-center gap-2 border-b border-[#f1f3f5] bg-[#ffffff] px-5 py-4">
-          <span className="text-sm text-[#98a2b3]">Showing</span>
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="h-9 rounded-md border border-[#ebeef1] bg-white px-2 text-sm text-[#4b5563] outline-none focus:border-[#d0d5dd]"
+      {!tipDismissed && (
+        <div className="admin-tip flex items-start gap-3 rounded-xl border border-[#d8b84f]/25 bg-[#d8b84f]/10 px-4 py-3 text-sm text-[#8b95a7]">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#d8b84f]" strokeWidth={2.2} />
+          <p className="flex-1">
+            Tip: search by product ID or SKU — each product has a unique ID (e.g. P001) for exact matches.
+          </p>
+          <button
+            type="button"
+            onClick={dismissTip}
+            className="rounded-lg p-1 text-[#8b95a7] transition hover:bg-[#182238] hover:text-[#f8fafc]"
+            aria-label="Dismiss tip"
           >
-            {ENTRY_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-          <span className="mr-2 text-sm text-[#98a2b3]">entries</span>
+            <X className="h-4 w-4" strokeWidth={2.2} />
+          </button>
+        </div>
+      )}
 
-          <div className="relative min-w-[240px] flex-1 sm:max-w-[320px]">
-            <input
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[88px] w-full rounded-xl" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard
+            label="Total products"
+            value={counts.total}
+            icon={<Package className={cardIconClass} strokeWidth={2.2} />}
+            onClick={() => setStatus("")}
+          />
+          <StatCard
+            label="In stock"
+            value={counts.inStock}
+            variant="success"
+            icon={<Package className={cardIconClass} strokeWidth={2.2} />}
+            onClick={() => setStatusQuick("in-stock")}
+          />
+          <StatCard
+            label="Out of stock"
+            value={counts.outStock}
+            variant="danger"
+            icon={<Package className={cardIconClass} strokeWidth={2.2} />}
+            onClick={() => setStatusQuick("out-stock")}
+          />
+          <StatCard
+            label="Low stock"
+            value={counts.lowStock}
+            variant="warning"
+            icon={<AlertTriangle className={cardIconClass} strokeWidth={2.2} />}
+            onClick={() => setStatusQuick("low-stock")}
+          />
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
+        <div className="admin-filterbar flex flex-wrap items-end gap-3 border-b border-[#263145] px-4 py-4">
+          <div className="w-28">
+            <Select
+              label="Show"
+              value={String(pageSize)}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              options={PAGE_SIZE_OPTIONS}
+            />
+          </div>
+          <span className="hidden pb-2 text-xs text-[#8b95a7] sm:inline">entries per page</span>
+
+          <div className="relative min-w-[200px] flex-1 max-w-md self-end">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
+            <Input
+              className="pl-9"
+              placeholder="Name, SKU, or product ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search here..."
-              className="h-9 w-full rounded-md border border-[#ebeef1] bg-white pl-3 pr-9 text-sm text-[#374151] outline-none placeholder:text-[#b4bac5] focus:border-[#d0d5dd]"
             />
-            <svg viewBox="0 0 24 24" className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 21l-4.35-4.35" />
-              <circle cx="11" cy="11" r="6" />
-            </svg>
           </div>
 
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="h-9 rounded-md border border-[#ebeef1] bg-white px-2 text-sm text-[#4b5563] outline-none focus:border-[#d0d5dd]"
-          >
-            {categoryOptions.map((opt) => (
-              <option key={opt.value || "all"} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <div className="w-44">
+            <Select
+              label="Category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              options={categoryOptions}
+            />
+          </div>
+          <div className="w-40">
+            <Select
+              label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              options={STATUS_OPTIONS}
+            />
+          </div>
+          <div className="w-44">
+            <Select
+              label="Sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              options={SORT_OPTIONS}
+            />
+          </div>
 
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="h-9 rounded-md border border-[#ebeef1] bg-white px-2 text-sm text-[#4b5563] outline-none focus:border-[#d0d5dd]"
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value || "all"} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="h-9 rounded-md border border-[#ebeef1] bg-white px-2 text-sm text-[#4b5563] outline-none focus:border-[#d0d5dd]"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-
-          <Link
-            to="/admin/products/new"
-            className="ml-auto inline-flex h-9 items-center rounded-md bg-[#fb923c] px-5 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(0,0,0,0.12)] transition hover:-translate-y-[0.5px] hover:bg-[#f97316]"
-          >
-            + Add new
+          <Link to="/admin/products/new" className="ml-auto pb-0.5">
+            <Btn variant="primary" size="md" className="gap-1.5">
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              Add new
+            </Btn>
           </Link>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="admin-table min-w-full text-left">
-            <thead className="border-b border-[#f2f4f6] bg-[#fbfcfd] text-xs font-semibold text-[#8c94a3]">
+          <table className="admin-table min-w-full text-left text-sm">
+            <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
-                <th className="px-5 py-3.5">Product</th>
-                <th className="px-5 py-3.5">Product ID</th>
-                <th className="px-5 py-3.5">Price</th>
-                <th className="px-5 py-3.5">Quantity</th>
-                <th className="px-5 py-3.5">Sale</th>
-                <th className="px-5 py-3.5">Stock</th>
-                <th className="px-5 py-3.5">Start date</th>
-                <th className="px-5 py-3.5 text-center">Action</th>
+                <th className="px-4 py-3 font-medium">Product</th>
+                <th className="px-4 py-3 font-medium">Product ID</th>
+                <th className="px-4 py-3 font-medium">Price</th>
+                <th className="px-4 py-3 font-medium">Quantity</th>
+                <th className="px-4 py-3 font-medium">Units sold</th>
+                <th className="px-4 py-3 font-medium">Stock</th>
+                <th className="px-4 py-3 font-medium">Start date</th>
+                <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#f3f4f6]">
-              {loading && (
+            <tbody className="divide-y divide-[#263145]/60">
+              {loading ? (
+                <SkeletonRows cols={8} rows={8} />
+              ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-[#9ca3af]">Loading products...</td>
+                  <td colSpan={8} className="px-4 py-14 text-center">
+                    <p className="text-sm font-medium text-[#f8fafc]">No products match your filters</p>
+                    <p className="mt-1 text-xs text-[#8b95a7]">Try another category or clear the search.</p>
+                  </td>
                 </tr>
+              ) : (
+                paged.map((p) => {
+                  const livePrice = p.salePrice || p.price || 0;
+                  const qty = p.quantity ?? p.stock ?? 0;
+                  const hasSale = p.salePrice != null && p.salePrice < (p.price || 0);
+                  return (
+                    <tr key={p.id} className="transition">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <ProductThumbnail src={p.image || p.images?.[0]} alt={p.name} size={40} />
+                          <p className="max-w-[200px] truncate font-medium text-[#f8fafc]" title={p.name}>
+                            {p.name}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#d8b84f]">
+                        #{p.id}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <span className="font-semibold tabular-nums text-[#f8fafc]">
+                          {formatLkr(livePrice)}
+                        </span>
+                        {hasSale && (
+                          <span className="ml-2 text-xs tabular-nums text-[#8b95a7] line-through">
+                            {formatLkr(p.price)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-[#f8fafc]">{qty}</td>
+                      <td className="px-4 py-3 tabular-nums text-[#8b95a7]">
+                        {p.salesCount ?? p.sales ?? 0}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StockBadge product={p} />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-[#8b95a7]">
+                        {fmtDate(p.createdAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1">
+                          <Link
+                            to={`/admin/products/${p.id}/details`}
+                            title="View details"
+                            className={actionBtnClass}
+                          >
+                            <Eye className="h-3.5 w-3.5" strokeWidth={2.2} />
+                          </Link>
+                          <Link
+                            to={`/admin/products/${p.id}/edit`}
+                            title="Edit product"
+                            className={actionBtnClass}
+                          >
+                            <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+                          </Link>
+                          <button
+                            type="button"
+                            title="Delete product"
+                            onClick={() => handleDelete(p)}
+                            className={`${actionBtnClass} hover:border-[#f87171]/50 hover:text-[#f87171]`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
-              {!loading && paged.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-[#9ca3af]">No products found.</td>
-                </tr>
-              )}
-              {!loading && paged.map((p) => {
-                const livePrice = p.salePrice || p.price || 0;
-                const qty = p.quantity ?? p.stock ?? 0;
-                const stock = p.stock ?? 0;
-                const inStock = stock > 0 && p.isActive !== false;
-                return (
-                  <tr key={p.id} className="text-[15px] text-[#344054] transition-colors hover:bg-[#fafbfc]">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <ProductImage src={p.image || p.images?.[0]} alt={p.name} />
-                        <p className="font-medium text-[#111827]">{p.name}</p>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm font-medium text-[#98a2b3]">#{String(p.id).slice(0, 7)}</td>
-                    <td className="px-5 py-3.5 font-medium text-[#344054]">{formatMoney(livePrice)}</td>
-                    <td className="px-5 py-3.5">{formatCompactNumber(qty)}</td>
-                    <td className="px-5 py-3.5">{formatCompactNumber(p.salesCount || p.sales || 0)}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`rounded-sm px-2 py-1 text-xs font-medium ${inStock ? "bg-[#ecfdf3] text-[#16a34a]" : "bg-[#fff1f2] text-[#ef4444]"}`}>
-                        {inStock ? "In stock" : "Out of stock"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-[#98a2b3]">{formatDate(p.createdAt)}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          className={iconBtn}
-                          title="View"
-                          onClick={() => window.open(`/product/${p.id}`, "_blank")}
-                        >
-                          <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] text-[#f59e0b]" fill="none" stroke="currentColor" strokeWidth="1.9">
-                            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                            <circle cx="12" cy="12" r="2.5" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className={iconBtn}
-                          title={p.isActive ? "Deactivate" : "Activate"}
-                          onClick={() => handleToggleActive(p)}
-                        >
-                          <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] text-[#22c55e]" fill="none" stroke="currentColor" strokeWidth="1.9">
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className={iconBtn}
-                          title="Delete"
-                          onClick={() => handleDelete(p)}
-                        >
-                          <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] text-[#ef4444]" fill="none" stroke="currentColor" strokeWidth="1.9">
-                            <path d="M3 6h18" />
-                            <path d="M8 6V4h8v2" />
-                            <path d="M6 6l1 14h10l1-14" />
-                            <path d="M10 11v6M14 11v6" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
             </tbody>
           </table>
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[#f1f3f5] px-4 py-3">
-            <p className="text-xs text-[#9aa1ad]">
-              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length}
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="h-7 rounded-md border border-[#e5e7eb] px-2 text-xs text-[#6b7280] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Prev
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(page - 2, 0), Math.max(page + 1, 3)).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPage(p)}
-                  className={`h-7 w-7 rounded-md text-xs ${p === page ? "bg-[#fb923c] text-white" : "border border-[#e5e7eb] text-[#6b7280]"}`}
-                >
-                  {p}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="h-7 rounded-md border border-[#e5e7eb] px-2 text-xs text-[#6b7280] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next
-              </button>
+        {!loading && filtered.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs font-medium text-[#8b95a7]">
+              Show data{" "}
+              <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+              of {filtered.length}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {(() => {
+                const navItems =
+                  totalPages <= 5
+                    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+                    : page <= 3
+                      ? [1, 2, 3, "end-gap", totalPages]
+                      : page >= totalPages - 2
+                        ? [1, "start-gap", totalPages - 2, totalPages - 1, totalPages]
+                        : [1, "start-gap", page - 1, page, page + 1, "end-gap", totalPages];
+
+                const navButtonClass =
+                  "flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+                const ghostStyle =
+                  "border-[#263145] bg-[#0f1726] text-[#8b95a7] shadow-sm hover:border-[#d8b84f]/50 hover:bg-[#182238] hover:text-[#f8fafc]";
+                const activeStyle =
+                  "border-[#d8b84f] bg-[#d8b84f] text-[#070b14] shadow-[0_8px_18px_rgba(216,184,79,0.24)]";
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="First page"
+                      disabled={page <= 1}
+                      onClick={() => setPage(1)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Previous page"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    {navItems.map((item) =>
+                      typeof item === "number" ? (
+                        <button
+                          key={item}
+                          type="button"
+                          aria-label={`Page ${item}`}
+                          onClick={() => setPage(item)}
+                          className={`${navButtonClass} ${item === page ? activeStyle : ghostStyle}`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={item} className="px-1 text-sm font-semibold text-[#8b95a7]">
+                          …
+                        </span>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Next page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Last page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage(totalPages)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

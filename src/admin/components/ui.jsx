@@ -1,4 +1,20 @@
 import React, { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from "react";
+import {
+  Archive,
+  BadgeCheck,
+  Banknote,
+  CheckCircle,
+  Inbox,
+  PackageCheck,
+  PackageOpen,
+  RotateCw,
+  Search,
+  ShoppingBag,
+  Truck,
+  XCircle,
+} from "lucide-react";
+import { normalizeOrderPipelineStatus, ORDER_PIPELINE } from "../../lib/orderStatus";
+import { RETURN_TERMINAL_REJECTED } from "../../lib/returnStatus";
 
 // ─── Color Tokens (used as Tailwind arbitrary values) ───
 // bg-main: #070b14   bg-sidebar: #0f1726   bg-panel: #101827
@@ -27,6 +43,11 @@ export function PageHeader({ title, subtitle, actions, badge }) {
 export function StatCard({ icon, label, value, trend, trendLabel, variant, helpText, onClick }) {
   const borderColors = { danger: "border-[#f87171]/30", warning: "border-[#f59e0b]/30", success: "border-[#34d399]/30" };
   const border = borderColors[variant] || "border-[#263145]";
+  const iconTone = {
+    danger: "border-[#f87171]/20 bg-[#f87171]/10 text-[#f87171] shadow-[0_8px_22px_rgba(248,113,113,0.12)]",
+    warning: "border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#f59e0b] shadow-[0_8px_22px_rgba(245,158,11,0.12)]",
+    success: "border-[#34d399]/20 bg-[#34d399]/10 text-[#34d399] shadow-[0_8px_22px_rgba(52,211,153,0.12)]",
+  }[variant] || "border-[#d8b84f]/20 bg-[#d8b84f]/10 text-[#d8b84f] shadow-[0_8px_22px_rgba(216,184,79,0.12)]";
   return (
     <div
       onClick={onClick}
@@ -34,7 +55,11 @@ export function StatCard({ icon, label, value, trend, trendLabel, variant, helpT
     >
       <div className="flex items-start justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">{label}</p>
-        {icon && <span className="text-[#8b95a7]">{icon}</span>}
+        {icon && (
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur ${iconTone}`}>
+            {icon}
+          </span>
+        )}
       </div>
       <p className="mt-2 text-2xl font-bold tabular-nums text-[#f8fafc]">{value}</p>
       <div className="mt-1 flex items-center gap-2">
@@ -57,7 +82,8 @@ const badgeStyles = {
   PROCESSING: "bg-[#a78bfa]/15 text-[#a78bfa]", PACKED: "bg-[#60a5fa]/15 text-[#60a5fa]",
   SHIPPED: "bg-[#38bdf8]/15 text-[#38bdf8]", DELIVERED: "bg-[#34d399]/15 text-[#34d399]",
   CANCELLED: "bg-[#f87171]/15 text-[#f87171]", RETURNED: "bg-[#fb923c]/15 text-[#fb923c]",
-  REFUNDED: "bg-[#8b95a7]/15 text-[#8b95a7]", PAID: "bg-[#34d399]/15 text-[#34d399]",
+  REFUNDED: "bg-[#34d399]/15 text-[#34d399]", INSPECTED: "bg-[#38bdf8]/15 text-[#38bdf8]",
+  PAID: "bg-[#34d399]/15 text-[#34d399]",
   PENDING: "bg-[#f59e0b]/15 text-[#f59e0b]", FAILED: "bg-[#f87171]/15 text-[#f87171]",
   REQUESTED: "bg-[#f59e0b]/15 text-[#f59e0b]", APPROVED: "bg-[#60a5fa]/15 text-[#60a5fa]",
   RETURN_RECEIVED: "bg-[#a78bfa]/15 text-[#a78bfa]", RETURN_APPROVED: "bg-[#60a5fa]/15 text-[#60a5fa]",
@@ -69,6 +95,10 @@ const badgeStyles = {
   normal: "bg-[#60a5fa]/15 text-[#60a5fa]", low: "bg-[#8b95a7]/15 text-[#8b95a7]",
   healthy: "bg-[#34d399]/15 text-[#34d399]", warning: "bg-[#f59e0b]/15 text-[#f59e0b]",
   generated: "bg-[#34d399]/15 text-[#34d399]",
+  sent: "bg-[#60a5fa]/15 text-[#60a5fa]",
+  paid: "bg-[#34d399]/15 text-[#34d399]",
+  overdue: "bg-[#f59e0b]/15 text-[#f59e0b]",
+  cancelled: "bg-[#f87171]/15 text-[#f87171]",
   ADDED: "bg-[#34d399]/15 text-[#34d399]", SOLD: "bg-[#60a5fa]/15 text-[#60a5fa]",
   ADJUSTED: "bg-[#f59e0b]/15 text-[#f59e0b]", DAMAGED: "bg-[#f87171]/15 text-[#f87171]",
   REMOVED: "bg-[#f87171]/15 text-[#f87171]",
@@ -159,7 +189,7 @@ export function Tabs({ tabs, activeTab, onChange }) {
 }
 
 // ─── ConfirmDialog ───
-export function ConfirmDialog({ open, title, message, confirmLabel = "Confirm", confirmVariant = "danger", onConfirm, onCancel }) {
+export function ConfirmDialog({ open, title, message, confirmLabel = "Confirm", confirmVariant = "danger", onConfirm, onCancel, busy = false }) {
   if (!open) return null;
   const btnColor = confirmVariant === "danger"
     ? "bg-[#f87171] hover:bg-[#ef4444] text-white"
@@ -170,10 +200,20 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Confirm", 
         <h3 className="text-lg font-bold text-[#f8fafc]">{title}</h3>
         <p className="mt-2 text-sm text-[#8b95a7]">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onCancel} className="rounded-lg border border-[#263145] px-4 py-2 text-sm font-semibold text-[#8b95a7] hover:bg-[#182238]">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-lg border border-[#263145] px-4 py-2 text-sm font-semibold text-[#8b95a7] hover:bg-[#182238] disabled:opacity-50"
+          >
             Cancel
           </button>
-          <button onClick={onConfirm} className={`rounded-lg px-4 py-2 text-sm font-semibold ${btnColor}`}>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60 ${btnColor}`}
+          >
             {confirmLabel}
           </button>
         </div>
@@ -309,27 +349,257 @@ export function ProductThumbnail({ src, alt = "", size = 40 }) {
 }
 
 // ─── OrderTimeline ───
-const ORDER_PIPELINE = ["PLACED", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED", "DELIVERED"];
+const ORDER_PIPELINE_STEPS = [
+  { key: "PLACED", label: "Placed", Icon: ShoppingBag },
+  { key: "CONFIRMED", label: "Confirmed", Icon: BadgeCheck },
+  { key: "PROCESSING", label: "Processing", Icon: RotateCw },
+  { key: "PACKED", label: "Packed", Icon: Archive },
+  { key: "SHIPPED", label: "Shipped", Icon: Truck },
+  { key: "DELIVERED", label: "Delivered", Icon: PackageCheck },
+];
 
 export function OrderTimeline({ currentStatus }) {
-  const idx = ORDER_PIPELINE.indexOf(currentStatus);
-  const isCancelled = currentStatus === "CANCELLED" || currentStatus === "RETURNED";
+  const pipelineStatus = normalizeOrderPipelineStatus(currentStatus);
+  const idx = ORDER_PIPELINE.indexOf(pipelineStatus);
+  const isCancelled = pipelineStatus === "CANCELLED" || pipelineStatus === "RETURNED";
+  const hasStatus = idx >= 0;
+  const activeIdx = hasStatus ? idx : -1;
+  const stepCount = ORDER_PIPELINE.length;
+  const segmentCount = Math.max(stepCount - 1, 0);
+
   return (
-    <div className="flex items-center gap-1">
-      {ORDER_PIPELINE.map((step, i) => {
-        const done = idx >= i;
-        return (
-          <React.Fragment key={step}>
-            <div className="flex flex-col items-center">
-              <div className={`h-3 w-3 rounded-full border-2 ${done ? "border-[#34d399] bg-[#34d399]" : isCancelled ? "border-[#f87171]/40 bg-transparent" : "border-[#263145] bg-transparent"}`} />
-              <span className="mt-1 text-[9px] text-[#8b95a7]">{step.slice(0, 4)}</span>
-            </div>
-            {i < ORDER_PIPELINE.length - 1 && (
-              <div className={`h-0.5 flex-1 rounded ${idx > i ? "bg-[#34d399]" : "bg-[#263145]"}`} />
-            )}
-          </React.Fragment>
-        );
-      })}
+    <div className="order-timeline relative rounded-2xl border px-4 py-5">
+      <style>{`
+        @keyframes twowayTimelineShimmer {
+          0% { transform: translateX(-120%); opacity: 0; }
+          18% { opacity: .7; }
+          100% { transform: translateX(120%); opacity: 0; }
+        }
+        @keyframes twowayTimelinePulse {
+          0%, 100% { opacity: .35; transform: scale(.96); }
+          50% { opacity: .9; transform: scale(1.08); }
+        }
+      `}</style>
+
+      <div className="order-timeline__glow pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" />
+
+      <div className="relative">
+        <div
+          className="order-timeline__track pointer-events-none absolute z-0 hidden h-2 lg:flex"
+          style={{
+            top: "1.5rem",
+            left: `calc(100% / ${stepCount * 2})`,
+            right: `calc(100% / ${stepCount * 2})`,
+          }}
+        >
+          {Array.from({ length: segmentCount }, (_, segIdx) => {
+            const filled = isCancelled ? segIdx < segmentCount : hasStatus && segIdx < activeIdx;
+            return (
+              <div
+                key={segIdx}
+                className={`order-timeline__segment relative h-full flex-1 overflow-hidden ${segIdx === 0 ? "rounded-l-full" : ""} ${segIdx === segmentCount - 1 ? "rounded-r-full" : ""}`}
+              >
+                <div
+                  className={`order-timeline__fill absolute inset-y-0 left-0 transition-[width] duration-700 ease-out ${isCancelled ? "is-cancelled" : ""}`}
+                  style={{ width: filled ? "100%" : "0%" }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="relative z-10 hidden lg:flex lg:justify-between lg:gap-4">
+          {ORDER_PIPELINE_STEPS.map(({ key, label, Icon }, i) => {
+            const active = !isCancelled && hasStatus && i === activeIdx;
+            const muted = !active && !isCancelled;
+
+            return (
+              <div key={key} className="flex min-w-0 flex-1 flex-col items-center text-center">
+                <div
+                  className={[
+                    "order-timeline__step relative flex h-12 w-12 items-center justify-center rounded-2xl border transition-all duration-500",
+                    isCancelled && "is-cancelled",
+                    active && "is-active",
+                    muted && "is-muted",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {active && (
+                    <>
+                      <span
+                        className="order-timeline__pulse absolute inset-[-6px] rounded-[1.35rem] border"
+                        style={{ animation: "twowayTimelinePulse 1.9s ease-in-out infinite" }}
+                      />
+                      <span className="order-timeline__ring absolute inset-[-3px] rounded-[1.2rem] border" />
+                    </>
+                  )}
+                  <Icon className="relative z-10 h-5 w-5" strokeWidth={2.25} />
+                  {active && (
+                    <span className="order-timeline__badge absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
+                      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+                <p
+                  className={[
+                    "order-timeline__label mt-2 text-[10px] font-semibold tracking-wide",
+                    active && "is-active",
+                    muted && "is-muted",
+                    isCancelled && "is-cancelled",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {label}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="relative z-10 grid grid-cols-2 gap-4 overflow-visible sm:grid-cols-3 lg:hidden">
+          {ORDER_PIPELINE_STEPS.map(({ key, label, Icon }, i) => {
+            const active = !isCancelled && hasStatus && i === activeIdx;
+            const muted = !active && !isCancelled;
+
+            return (
+              <div key={`${key}-m`} className="flex flex-col items-center text-center">
+                <div
+                  className={[
+                    "order-timeline__step relative flex h-12 w-12 items-center justify-center rounded-2xl border transition-all duration-500",
+                    isCancelled && "is-cancelled",
+                    active && "is-active",
+                    muted && "is-muted",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {active && (
+                    <>
+                      <span
+                        className="order-timeline__pulse absolute inset-[-6px] rounded-[1.35rem] border"
+                        style={{ animation: "twowayTimelinePulse 1.9s ease-in-out infinite" }}
+                      />
+                      <span className="order-timeline__ring absolute inset-[-3px] rounded-[1.2rem] border" />
+                    </>
+                  )}
+                  <Icon className="relative z-10 h-5 w-5" strokeWidth={2.25} />
+                  {active && (
+                    <span className="order-timeline__badge absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
+                      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+                <p
+                  className={[
+                    "order-timeline__label mt-2 text-[10px] font-semibold tracking-wide",
+                    active && "is-active",
+                    muted && "is-muted",
+                    isCancelled && "is-cancelled",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {label}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const RETURN_PIPELINE_STEPS = [
+  { key: "REQUESTED", label: "Requested", Icon: Inbox },
+  { key: "APPROVED", label: "Approved", Icon: CheckCircle },
+  { key: "RETURN_RECEIVED", label: "Received", Icon: PackageOpen },
+  { key: "INSPECTED", label: "Inspected", Icon: Search },
+  { key: "REFUNDED", label: "Refunded", Icon: Banknote },
+];
+
+/** Aggregate return counts by status — list page filter shortcuts. */
+export function ReturnPipelineSummary({ counts = {}, activeFilter = "ALL", onFilter }) {
+  const rejectedCount = counts[RETURN_TERMINAL_REJECTED] || 0;
+
+  return (
+    <div className="return-pipeline overflow-x-auto rounded-xl border border-[#263145] bg-[#121b2e] p-4">
+      <div className="flex min-w-[640px] items-stretch gap-4">
+        <div className="flex flex-1 items-center gap-0">
+          {RETURN_PIPELINE_STEPS.map(({ key, label, Icon }, i) => {
+            const count = counts[key] || 0;
+            const active = activeFilter === key;
+            return (
+              <React.Fragment key={key}>
+                <button
+                  type="button"
+                  onClick={() => onFilter?.(activeFilter === key ? "ALL" : key)}
+                  className={`return-pipeline__step flex min-w-[88px] flex-1 flex-col items-center rounded-lg px-2 py-2 transition ${
+                    active ? "is-active bg-[#d8b84f]/15" : "hover:bg-[#182238]"
+                  }`}
+                >
+                  <div
+                    className={`return-pipeline__icon flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+                      count > 0
+                        ? "border-[#d8b84f]/30 bg-[#d8b84f]/10 text-[#d8b84f]"
+                        : "border-[#263145] bg-[#0f1726] text-[#8b95a7]"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" strokeWidth={2.2} />
+                  </div>
+                  <span
+                    className={`mt-1.5 text-[10px] font-bold tabular-nums ${
+                      count > 0 ? "text-[#f8fafc]" : "text-[#8b95a7]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                  <span
+                    className={`mt-0.5 text-center text-[9px] font-semibold uppercase leading-tight tracking-wide ${
+                      key === "REFUNDED"
+                        ? "text-[#34d399]"
+                        : active
+                          ? "text-[#d8b84f]"
+                          : "text-[#8b95a7]"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                </button>
+                {i < RETURN_PIPELINE_STEPS.length - 1 && (
+                  <div className="return-pipeline__connector h-0.5 min-w-[12px] flex-1 bg-[#263145]" />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+        <div className="return-pipeline__rejected w-px shrink-0 bg-[#263145]" aria-hidden />
+        <button
+          type="button"
+          onClick={() => onFilter?.(activeFilter === RETURN_TERMINAL_REJECTED ? "ALL" : RETURN_TERMINAL_REJECTED)}
+          className={`return-pipeline__rejected-btn flex min-w-[88px] flex-col items-center justify-center rounded-lg px-3 py-2 transition ${
+            activeFilter === RETURN_TERMINAL_REJECTED ? "bg-[#f87171]/15" : "hover:bg-[#182238]"
+          }`}
+        >
+          <div
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+              rejectedCount > 0
+                ? "border-[#f87171]/30 bg-[#f87171]/10 text-[#f87171]"
+                : "border-[#263145] bg-[#0f1726] text-[#8b95a7]"
+            }`}
+          >
+            <XCircle className="h-4 w-4" strokeWidth={2.2} />
+          </div>
+          <span
+            className={`mt-1.5 text-[10px] font-bold tabular-nums ${
+              rejectedCount > 0 ? "text-[#f87171]" : "text-[#8b95a7]"
+            }`}
+          >
+            {rejectedCount}
+          </span>
+          <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#f87171]">
+            Rejected
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

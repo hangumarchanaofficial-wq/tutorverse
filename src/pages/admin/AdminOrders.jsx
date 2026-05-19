@@ -1,89 +1,193 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { fetchAdminOrders } from "../../services/adminApi";
+import {
+  Download, Search, X, MoreVertical,
+  ShoppingBag, Clock, CircleCheck, Settings2, Archive,
+  Truck, PackageCheck, XCircle, RotateCcw, Layers,
+} from "lucide-react";
 
-const STATUS_OPTIONS = ["", "pending", "processing", "completed", "cancelled"];
-const PER_PAGE = 20;
+/* ─── Icon map per status (v2) ─────────────────── */
+const STATUS_ICONS = {
+  all:        ShoppingBag,
+  placed:     Layers,
+  pending:    Clock,
+  confirmed:  CircleCheck,
+  processing: Settings2,
+  packed:     Archive,
+  shipped:    Truck,
+  delivered:  PackageCheck,
+  completed:  PackageCheck,
+  cancelled:  XCircle,
+  refunded:   RotateCcw,
+};
 
-function formatLkr(n, { compact = false } = {}) {
+/* ─── helpers ─────────────────────────────────── */
+function formatLkr(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "—";
-  if (compact && Math.abs(x) >= 1000) {
-    if (Math.abs(x) >= 1_000_000) return `LKR ${(x / 1_000_000).toFixed(1)}M`;
-    return `LKR ${(x / 1000).toFixed(1)}k`;
-  }
   return `LKR ${x.toLocaleString()}`;
 }
 
 function formatDate(iso) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  } catch { return iso; }
 }
 
-function Skeleton({ className = "h-4 w-24" }) {
-  return <span className={`inline-block animate-pulse rounded-md bg-white/[0.06] ${className}`} />;
+function timeAgo(iso) {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 2)  return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30);
+  return `${mo}mo ago`;
 }
 
-const STATUS_PILL = {
-  pending: "bg-amber-500/15 text-amber-400",
-  processing: "bg-indigo-500/15 text-indigo-400",
-  completed: "bg-emerald-500/15 text-emerald-400",
-  cancelled: "bg-rose-500/15 text-rose-400",
+/* ─── Theme hook ───────────────────────────────── */
+function useAdminTheme() {
+  const [theme, setTheme] = useState(
+    () => (typeof document !== "undefined"
+      ? document.documentElement.getAttribute("data-admin-theme") || "light"
+      : "light")
+  );
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() =>
+      setTheme(el.getAttribute("data-admin-theme") || "light")
+    );
+    obs.observe(el, { attributes: true, attributeFilter: ["data-admin-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  return theme;
+}
+
+/* ─── Status / payment palettes ────────────────── */
+const STATUS_PAL = {
+  light: {
+    placed:      { bg: "#f0f9ff", text: "#0369a1",  dot: "#38bdf8" },
+    pending:     { bg: "#fffbeb", text: "#92400e",  dot: "#f59e0b" },
+    confirmed:   { bg: "#f0fdf4", text: "#065f46",  dot: "#34d399" },
+    processing:  { bg: "#eef2ff", text: "#3730a3",  dot: "#818cf8" },
+    packed:      { bg: "#fdf4ff", text: "#7e22ce",  dot: "#c084fc" },
+    shipped:     { bg: "#fff7ed", text: "#c2410c",  dot: "#fb923c" },
+    delivered:   { bg: "#f0fdf4", text: "#14532d",  dot: "#22c55e" },
+    completed:   { bg: "#f0fdf4", text: "#14532d",  dot: "#22c55e" },
+    cancelled:   { bg: "#fff1f2", text: "#9f1239",  dot: "#f43f5e" },
+    refunded:    { bg: "#f8fafc", text: "#475467",  dot: "#94a3b8" },
+  },
+  dark: {
+    placed:      { bg: "rgba(56,189,248,0.12)",  text: "#38bdf8",  dot: "#38bdf8" },
+    pending:     { bg: "rgba(245,158,11,0.12)",  text: "#fbbf24",  dot: "#fbbf24" },
+    confirmed:   { bg: "rgba(52,211,153,0.12)",  text: "#34d399",  dot: "#34d399" },
+    processing:  { bg: "rgba(129,140,248,0.12)", text: "#818cf8",  dot: "#818cf8" },
+    packed:      { bg: "rgba(192,132,252,0.12)", text: "#c084fc",  dot: "#c084fc" },
+    shipped:     { bg: "rgba(251,146,60,0.12)",  text: "#fb923c",  dot: "#fb923c" },
+    delivered:   { bg: "rgba(34,197,94,0.12)",   text: "#4ade80",  dot: "#4ade80" },
+    completed:   { bg: "rgba(34,197,94,0.12)",   text: "#4ade80",  dot: "#4ade80" },
+    cancelled:   { bg: "rgba(244,63,94,0.12)",   text: "#fb7185",  dot: "#fb7185" },
+    refunded:    { bg: "rgba(148,163,184,0.12)", text: "#94a3b8",  dot: "#94a3b8" },
+  },
 };
 
-const PAYMENT_PILL = {
-  paid: "bg-emerald-500/15 text-emerald-400",
-  pending: "bg-amber-500/15 text-amber-400",
-  failed: "bg-rose-500/15 text-rose-400",
+const PAY_PAL = {
+  light: {
+    paid:    { bg: "#f0fdf4", text: "#065f46" },
+    pending: { bg: "#fffbeb", text: "#92400e" },
+    failed:  { bg: "#fff1f2", text: "#9f1239" },
+    refunded:{ bg: "#f8fafc", text: "#475467" },
+  },
+  dark: {
+    paid:    { bg: "rgba(52,211,153,0.12)",  text: "#34d399" },
+    pending: { bg: "rgba(245,158,11,0.12)",  text: "#fbbf24" },
+    failed:  { bg: "rgba(244,63,94,0.12)",   text: "#fb7185" },
+    refunded:{ bg: "rgba(148,163,184,0.12)", text: "#94a3b8" },
+  },
 };
 
-function StatusPill({ status }) {
-  const cls = STATUS_PILL[String(status).toLowerCase()] || "bg-white/[0.06] text-white/60";
+/* Pipeline stages */
+const PIPELINE = ["placed", "confirmed", "processing", "packed", "shipped", "delivered"];
+
+const ALL_STATUSES = ["placed", "pending", "confirmed", "processing", "packed", "shipped", "delivered", "completed", "cancelled", "refunded"];
+const PER_PAGE = 10;
+
+/* ─── Sub-components ───────────────────────────── */
+function StatusPill({ status, palette }) {
+  const key = String(status || "").toLowerCase();
+  const p = palette[key] || { bg: "transparent", text: "#94a3b8", dot: "#94a3b8" };
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${cls}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {status}
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
+      style={{ backgroundColor: p.bg, color: p.text }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: p.dot }} />
+      {status || "—"}
     </span>
   );
 }
 
-function PaymentPill({ status }) {
-  const cls = PAYMENT_PILL[String(status).toLowerCase()] || "bg-white/[0.06] text-white/60";
+function PaymentPill({ status, palette }) {
+  const key = String(status || "").toLowerCase();
+  const p = palette[key] || { bg: "transparent", text: "#94a3b8" };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${cls}`}>
-      {status}
+    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
+      style={{ backgroundColor: p.bg, color: p.text }}>
+      {status || "—"}
     </span>
   );
 }
 
 function SortIcon({ dir }) {
-  if (!dir) return <span className="ml-1 text-white/20">↕</span>;
-  return <span className="ml-1 text-brand-gold">{dir === "asc" ? "↑" : "↓"}</span>;
+  if (!dir) return <span className="ml-1 opacity-20">↕</span>;
+  return <span className="ml-1 text-orange-500">{dir === "asc" ? "↑" : "↓"}</span>;
+}
+
+function Skeleton({ w = "w-24", h = "h-4" }) {
+  return <span className={`inline-block animate-pulse rounded-md bg-[#e5e7eb] ${w} ${h}`} />;
 }
 
 export default function AdminOrders() {
+  const theme = useAdminTheme();
+  const isDark = theme === "dark";
+
+  const sPal  = STATUS_PAL[isDark ? "dark" : "light"];
+  const pyPal = PAY_PAL[isDark ? "dark" : "light"];
+
+  const card   = isDark ? "#0d0d0d" : "#ffffff";
+  const border = isDark ? "#1e1e1e" : "#eceff3";
+  const sub    = isDark ? "#ffffff1a" : "#f8fafc";
+  const text1  = isDark ? "#f1f5f9"  : "#0b1220";
+  const text2  = isDark ? "#94a3b8"  : "#667085";
+  const text3  = isDark ? "#64748b"  : "#9ca3af";
+  const dividerClr = isDark ? "#1e1e1e" : "#f3f4f6";
+  const hoverRow   = isDark ? "#141414" : "#f8fafc";
+
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const statusFilter = searchParams.get("status") || "";
 
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [items,   setItems]   = useState([]);
+  const [total,   setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error,   setError]   = useState("");
 
-  const [search, setSearch] = useState("");
+  const [search,   setSearch]   = useState("");
   const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [sortCol, setSortCol] = useState("");
-  const [sortDir, setSortDir] = useState("");
-  const [page, setPage] = useState(1);
+  const [dateTo,   setDateTo]   = useState("");
+  const [payFilter, setPayFilter] = useState("");
+  const [methodFilter, setMethodFilter] = useState("");
+  const [sortCol,  setSortCol]  = useState("created_at");
+  const [sortDir,  setSortDir]  = useState("desc");
+  const [page,     setPage]     = useState(1);
   const [selected, setSelected] = useState(new Set());
-  const [bulkStatus, setBulkStatus] = useState("");
   const [csvCopied, setCsvCopied] = useState(false);
+  const [hoverRow_id, setHoverRow] = useState(null);
 
   useEffect(() => {
     let on = true;
@@ -95,34 +199,44 @@ export default function AdminOrders() {
         setItems(res.items || []);
         setTotal(res.total ?? 0);
       })
-      .catch((e) => {
-        if (on) setError(e.message || "Failed to load orders");
-      })
-      .finally(() => {
-        if (on) setLoading(false);
-      });
+      .catch((e) => { if (on) setError(e.message || "Failed to load orders"); })
+      .finally(() => { if (on) setLoading(false); });
     return () => { on = false; };
   }, [statusFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, dateFrom, dateTo, statusFilter]);
+  useEffect(() => { setPage(1); }, [search, dateFrom, dateTo, statusFilter, payFilter, methodFilter]);
 
   const setStatus = (v) => {
     const next = new URLSearchParams(searchParams);
-    if (v) next.set("status", v);
-    else next.delete("status");
+    if (v) next.set("status", v); else next.delete("status");
     setSearchParams(next);
   };
+
+  /* Status counts for the stat strip */
+  const statusCounts = useMemo(() => {
+    const counts = { all: items.length };
+    for (const o of items) {
+      const s = String(o.status || "").toLowerCase();
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    return counts;
+  }, [items]);
+
+  /* Unique payment methods */
+  const payMethods = useMemo(() => {
+    const set = new Set();
+    for (const o of items) if (o.payment_method) set.add(o.payment_method.toUpperCase());
+    return [...set].sort();
+  }, [items]);
 
   const filtered = useMemo(() => {
     let list = [...items];
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(
-        (o) =>
-          (o.order_number || "").toLowerCase().includes(q) ||
-          (o.customer_name || "").toLowerCase().includes(q)
+      list = list.filter((o) =>
+        (o.order_number || "").toLowerCase().includes(q) ||
+        (o.customer_name || "").toLowerCase().includes(q) ||
+        (o.customer_email || "").toLowerCase().includes(q)
       );
     }
     if (dateFrom) {
@@ -133,25 +247,23 @@ export default function AdminOrders() {
       const to = new Date(dateTo).getTime() + 86400000;
       list = list.filter((o) => new Date(o.created_at).getTime() < to);
     }
+    if (payFilter) {
+      list = list.filter((o) => String(o.payment_status || "").toLowerCase() === payFilter);
+    }
+    if (methodFilter) {
+      list = list.filter((o) => (o.payment_method || "").toUpperCase() === methodFilter);
+    }
     return list;
-  }, [items, search, dateFrom, dateTo]);
+  }, [items, search, dateFrom, dateTo, payFilter, methodFilter]);
 
   const sorted = useMemo(() => {
     if (!sortCol) return filtered;
     const list = [...filtered];
     list.sort((a, b) => {
-      let va = a[sortCol];
-      let vb = b[sortCol];
-      if (sortCol === "total_amount") {
-        va = Number(va) || 0;
-        vb = Number(vb) || 0;
-      } else if (sortCol === "created_at") {
-        va = new Date(va).getTime() || 0;
-        vb = new Date(vb).getTime() || 0;
-      } else {
-        va = String(va || "").toLowerCase();
-        vb = String(vb || "").toLowerCase();
-      }
+      let va = a[sortCol], vb = b[sortCol];
+      if (sortCol === "total_amount") { va = Number(va) || 0; vb = Number(vb) || 0; }
+      else if (sortCol === "created_at") { va = new Date(va).getTime() || 0; vb = new Date(vb).getTime() || 0; }
+      else { va = String(va || "").toLowerCase(); vb = String(vb || "").toLowerCase(); }
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -162,342 +274,667 @@ export default function AdminOrders() {
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE));
   const paged = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const totalRevenue = useMemo(() => {
-    return filtered.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
-  }, [filtered]);
+  const totalRevenue = useMemo(
+    () => filtered.reduce((s, o) => s + (Number(o.total_amount) || 0), 0),
+    [filtered]
+  );
 
   const toggleSort = (col) => {
     if (sortCol === col) {
-      setSortDir((d) => (d === "asc" ? "desc" : d === "desc" ? "" : "asc"));
-      if (sortDir === "desc") setSortCol("");
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortCol(col);
       setSortDir("asc");
     }
   };
 
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const toggleSelect = (id) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const toggleSelectAll = () => {
-    if (selected.size === paged.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paged.map((o) => o.id)));
-    }
+    setSelected(selected.size === paged.length ? new Set() : new Set(paged.map((o) => o.id)));
   };
+
+  const activePipelineIndex = PIPELINE.reduce(
+    (last, stage, i) => (statusCounts[stage] ? i : last),
+    -1
+  );
+  const pipelineProgress = activePipelineIndex <= 0
+    ? 0
+    : Math.round((activePipelineIndex / (PIPELINE.length - 1)) * 100);
 
   const exportCsv = () => {
-    const headers = ["Order Number", "Customer", "Email", "Total", "Status", "Payment Status", "Payment Method", "Date"];
+    const headers = ["Order", "Customer", "Email", "Date", "Total", "Method", "Payment", "Status"];
     const rows = sorted.map((o) => [
-      o.order_number,
-      o.customer_name,
-      o.customer_email,
-      o.total_amount,
-      o.status,
-      o.payment_status,
-      o.payment_method,
-      o.created_at,
+      o.order_number, o.customer_name, o.customer_email,
+      formatDate(o.created_at), o.total_amount,
+      o.payment_method, o.payment_status, o.status,
     ]);
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setCsvCopied(true);
-    setTimeout(() => setCsvCopied(false), 2000);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((c) => `"${String(c || "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
+      download: `orders-${new Date().toISOString().slice(0, 10)}.csv`,
+    });
+    document.body.appendChild(a); a.click(); a.remove();
+    setCsvCopied(true); setTimeout(() => setCsvCopied(false), 2000);
   };
 
-  const thClass = "px-4 py-3 text-left cursor-pointer select-none transition hover:text-white/70";
+  const hasFilters = search || dateFrom || dateTo || payFilter || methodFilter;
+
+  const Th = ({ col, children, cls = "" }) => (
+    <th
+      onClick={() => toggleSort(col)}
+      className={`px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap transition ${cls}`}
+      style={{ color: text3 }}
+    >
+      {children}
+      <SortIcon dir={sortCol === col ? sortDir : ""} />
+    </th>
+  );
+
+  const PaginationControls = () => (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        aria-label="Previous transactions"
+        disabled={page <= 1}
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-30"
+        style={{
+          backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+          border: `1px solid ${border}`,
+          color: text1,
+        }}
+      >
+        &lt;
+      </button>
+      <span className="text-xs font-semibold tabular-nums" style={{ color: text3 }}>
+        Page {page} of {totalPages}
+      </span>
+      <button
+        type="button"
+        aria-label="Next transactions"
+        disabled={page >= totalPages}
+        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-30"
+        style={{
+          backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+          border: `1px solid ${border}`,
+          color: text1,
+        }}
+      >
+        &gt;
+      </button>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6 py-6 px-6">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-gold">Management</p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-white">Orders</h1>
-          <p className="mt-1 text-sm text-white/50">
-            {total} order{total === 1 ? "" : "s"} total
-            {statusFilter ? <> · filtered: <span className="text-brand-gold">{statusFilter}</span></> : ""}
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: text1 }}>
+            Orders
+            <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold"
+              style={{ backgroundColor: isDark ? "rgba(249,115,22,0.15)" : "#fff7ed", color: "#f97316" }}>
+              {total}
+            </span>
+          </h1>
+          <p className="mt-0.5 text-sm" style={{ color: text2 }}>
+            Manage and track all customer orders
+            {statusFilter && <> · <span style={{ color: "#f97316" }}>{statusFilter}</span></>}
           </p>
         </div>
         <button
           type="button"
           onClick={exportCsv}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-gold px-4 py-2 text-sm font-semibold text-navy-950 transition hover:bg-brand-gold-light"
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition"
+          style={{
+            backgroundColor: isDark ? "#1a1a1a" : "#fff",
+            color: text1,
+            border: `1px solid ${border}`,
+          }}
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          <Download className="h-4 w-4" style={{ color: "#f97316" }} />
           {csvCopied ? "Exported!" : "Export CSV"}
         </button>
       </div>
 
-      {/* Summary chips */}
-      <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-[#111827] px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-gold/10">
-            <svg className="h-5 w-5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Showing</p>
-            <p className="font-display text-lg font-bold tabular-nums text-white">{sorted.length} orders</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-[#111827] px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
-            <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Revenue</p>
-            <p className="font-display text-lg font-bold tabular-nums text-white">{formatLkr(totalRevenue, { compact: true })}</p>
-          </div>
-        </div>
-      </div>
+      {/* ── Status stat strip ── */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        {[{ key: "all", label: "All Orders" },
+          ...ALL_STATUSES.map((s) => ({ key: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))
+        ].filter(({ key }) => key === "all" || statusCounts[key])
+         .map(({ key, label }) => {
+          const count  = key === "all" ? statusCounts.all : (statusCounts[key] || 0);
+          const active = key === "all" ? !statusFilter : statusFilter === key;
+          const pal    = sPal[key] || { bg: isDark ? "rgba(249,115,22,0.12)" : "#fff7ed", dot: "#f97316", text: text2 };
+          const Icon   = STATUS_ICONS[key] || ShoppingBag;
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-white/[0.06] bg-[#111827] p-4">
-        <div className="flex-1 min-w-[200px]">
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-white/40">Search</label>
-          <div className="relative">
-            <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Order number or customer name…"
-              className="w-full rounded-xl border border-white/[0.1] bg-white/[0.05] py-2 pl-10 pr-3 text-sm text-white placeholder-white/30 transition focus:border-brand-gold focus:outline-none"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-white/40">From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-xl border border-white/[0.1] bg-white/[0.05] px-3 py-2 text-sm text-white transition focus:border-brand-gold focus:outline-none [color-scheme:dark]"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-white/40">To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-xl border border-white/[0.1] bg-white/[0.05] px-3 py-2 text-sm text-white transition focus:border-brand-gold focus:outline-none [color-scheme:dark]"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-white/40">Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatus(e.target.value)}
-            className="rounded-xl border border-white/[0.1] bg-white/[0.05] px-3 py-2 text-sm text-white transition focus:border-brand-gold focus:outline-none"
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s || "all"} value={s} className="bg-[#111827] text-white">
-                {s ? s.charAt(0).toUpperCase() + s.slice(1) : "All statuses"}
-              </option>
-            ))}
-          </select>
-        </div>
-        {(search || dateFrom || dateTo) && (
-          <button
-            type="button"
-            onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
-            className="rounded-xl border border-white/[0.1] bg-white/[0.06] px-3 py-2 text-sm font-medium text-white/60 transition hover:bg-white/[0.1] hover:text-white"
-          >
-            Clear
-          </button>
-        )}
-      </div>
+          /* icon tile: active → orange tint, else use the status colour as tinted bg */
+          const iconBg  = active
+            ? (isDark ? "rgba(249,115,22,0.22)" : "#fff7ed")
+            : (isDark ? pal.bg : "#f3f4f6");
+          const iconClr = active ? "#f97316" : pal.dot;
 
-      {/* Bulk actions */}
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-brand-gold/20 bg-brand-gold/5 px-4 py-3">
-          <span className="text-sm font-medium text-brand-gold">{selected.size} selected</span>
-          <select
-            value={bulkStatus}
-            onChange={(e) => setBulkStatus(e.target.value)}
-            className="rounded-lg border border-white/[0.1] bg-white/[0.05] px-2 py-1.5 text-sm text-white focus:border-brand-gold focus:outline-none"
-          >
-            <option value="" className="bg-[#111827]">Update status to…</option>
-            {STATUS_OPTIONS.filter(Boolean).map((s) => (
-              <option key={s} value={s} className="bg-[#111827]">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-            ))}
-          </select>
-          {bulkStatus && (
+          return (
             <button
+              key={key}
               type="button"
-              onClick={() => {
-                alert(`Would update ${selected.size} orders to "${bulkStatus}" (API not yet wired)`);
-                setSelected(new Set());
-                setBulkStatus("");
+              onClick={() => setStatus(key === "all" ? "" : key)}
+              className="shrink-0 rounded-2xl px-4 py-3.5 text-left transition group"
+              style={{
+                backgroundColor: active
+                  ? (isDark ? "rgba(249,115,22,0.08)" : "#fffbf5")
+                  : (isDark ? "#0d0d0d" : "#ffffff"),
+                border: `1px solid ${active
+                  ? (isDark ? "rgba(249,115,22,0.35)" : "#fed7aa")
+                  : border}`,
+                boxShadow: active
+                  ? "none"
+                  : isDark ? "0 1px 3px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.05)",
+                minWidth: 110,
               }}
-              className="rounded-lg bg-brand-gold px-3 py-1.5 text-xs font-semibold text-navy-950 transition hover:bg-brand-gold-light"
             >
-              Apply
+              {/* icon tile */}
+              <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{ backgroundColor: iconBg }}>
+                <Icon size={18} style={{ color: iconClr }} strokeWidth={2} />
+              </div>
+
+              {/* label */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
+                style={{ color: active ? "#f97316" : text3 }}>
+                {label}
+              </p>
+
+              {/* count */}
+              <p className="mt-0.5 text-2xl font-bold tabular-nums leading-none"
+                style={{ color: active ? "#f97316" : text1 }}>
+                {loading ? "—" : count}
+              </p>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => { setSelected(new Set()); setBulkStatus(""); }}
-            className="ml-auto text-xs font-medium text-white/50 hover:text-white"
-          >
-            Deselect all
-          </button>
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {error && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>
-      )}
-
-      {/* Table */}
-      {loading ? (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#111827] shadow-premium">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-white/[0.06] bg-white/[0.03] text-[11px] font-semibold uppercase tracking-wider text-white/40">
-              <tr>
-                <th className="px-4 py-3 w-10" />
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.06]">
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <tr key={i}>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-4" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : sorted.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-[#111827] px-6 py-16 text-center shadow-premium">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06]">
-            <svg className="h-8 w-8 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-          </div>
-          <h3 className="mt-4 text-lg font-semibold text-white">No orders found</h3>
-          <p className="mt-1 text-sm text-white/50">Try adjusting your search or filter criteria.</p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#111827] shadow-premium">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-white/[0.06] bg-white/[0.03] text-[11px] font-semibold uppercase tracking-wider text-white/40">
-                <tr>
-                  <th className="px-4 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={paged.length > 0 && selected.size === paged.length}
-                      onChange={toggleSelectAll}
-                      className="rounded border-white/20 bg-white/[0.05] text-brand-gold focus:ring-brand-gold"
-                    />
-                  </th>
-                  <th className={thClass} onClick={() => toggleSort("order_number")}>
-                    Order <SortIcon dir={sortCol === "order_number" ? sortDir : ""} />
-                  </th>
-                  <th className={thClass} onClick={() => toggleSort("customer_name")}>
-                    Customer <SortIcon dir={sortCol === "customer_name" ? sortDir : ""} />
-                  </th>
-                  <th className={thClass} onClick={() => toggleSort("total_amount")}>
-                    Total <SortIcon dir={sortCol === "total_amount" ? sortDir : ""} />
-                  </th>
-                  <th className={thClass} onClick={() => toggleSort("status")}>
-                    Status <SortIcon dir={sortCol === "status" ? sortDir : ""} />
-                  </th>
-                  <th className={thClass} onClick={() => toggleSort("payment_status")}>
-                    Payment <SortIcon dir={sortCol === "payment_status" ? sortDir : ""} />
-                  </th>
-                  <th className={thClass} onClick={() => toggleSort("created_at")}>
-                    Date <SortIcon dir={sortCol === "created_at" ? sortDir : ""} />
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.06]">
-                {paged.map((o) => (
-                  <tr
-                    key={o.id}
-                    onClick={() => navigate(`/admin/orders/${o.id}`)}
-                    className="cursor-pointer transition hover:bg-white/[0.03]"
-                  >
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(o.id)}
-                        onChange={() => toggleSelect(o.id)}
-                        className="rounded border-white/20 bg-white/[0.05] text-brand-gold focus:ring-brand-gold"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs font-semibold text-brand-gold">{o.order_number}</span>
-                      <span className="ml-2 text-[11px] text-white/30">#{o.id}</span>
-                    </td>
-                    <td className="max-w-[200px] truncate px-4 py-3">
-                      <span className="text-sm font-medium text-white">{o.customer_name}</span>
-                      <span className="block truncate text-[11px] text-white/40">{o.customer_email}</span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-sm font-semibold tabular-nums text-white">{formatLkr(o.total_amount)}</td>
-                    <td className="px-4 py-3"><StatusPill status={o.status} /></td>
-                    <td className="px-4 py-3"><PaymentPill status={o.payment_status} /></td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-white/40">{formatDate(o.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-white/[0.06] px-4 py-3">
-            <p className="text-xs text-white/40">
-              Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, sorted.length)} of {sorted.length}
+      {/* ── Pipeline track ── */}
+      {!loading && items.length > 0 && (
+        <div className="relative overflow-hidden rounded-2xl px-6 py-5"
+          style={{
+            backgroundColor: card,
+            border: `1px solid ${border}`,
+            boxShadow: isDark ? "0 18px 50px rgba(0,0,0,0.28)" : "0 14px 40px rgba(15,23,42,0.05)",
+          }}>
+          <style>{`
+            @keyframes twowayPipelineShimmer {
+              0% { transform: translateX(-120%); opacity: 0; }
+              20% { opacity: .75; }
+              100% { transform: translateX(120%); opacity: 0; }
+            }
+            @keyframes twowayPipelinePulse {
+              0%, 100% { transform: scale(.96); opacity: .38; }
+              50% { transform: scale(1.08); opacity: .9; }
+            }
+          `}</style>
+          <div className="pointer-events-none absolute inset-0"
+            style={{
+              background: isDark
+                ? "radial-gradient(circle at 50% 0%, rgba(216,184,79,0.12), transparent 38%)"
+                : "linear-gradient(135deg, rgba(255,247,237,0.75), rgba(255,255,255,0) 42%), radial-gradient(circle at 50% 0%, rgba(249,115,22,0.08), transparent 38%)",
+            }}
+          />
+          <div className="relative mb-5 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: text3 }}>
+              Order Pipeline
             </p>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="rounded-lg border border-white/[0.1] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/[0.1] disabled:opacity-30"
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+              style={{
+                backgroundColor: isDark ? "rgba(216,184,79,0.12)" : "#fff7ed",
+                color: isDark ? "#d8b84f" : "#f97316",
+              }}>
+              Live Flow
+            </span>
+          </div>
+          <div className="relative">
+            <div className="absolute left-8 right-8 top-6 h-1.5 overflow-hidden rounded-full"
+              style={{
+                backgroundColor: isDark ? "#070b14" : "#e5e7eb",
+                boxShadow: isDark ? "inset 0 1px 2px rgba(0,0,0,0.5)" : "inset 0 1px 2px rgba(15,23,42,0.08)",
+              }}>
+              <div
+                className="relative h-full rounded-full transition-[width] duration-1000 ease-out"
+                style={{
+                  width: `${pipelineProgress}%`,
+                  background: isDark
+                    ? "linear-gradient(90deg, #d8b84f, #34d399, #22d3ee)"
+                    : "linear-gradient(90deg, #f97316, #34d399, #06b6d4)",
+                }}
               >
-                ← Prev
-              </button>
-              <span className="px-3 text-xs tabular-nums text-white/60">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="rounded-lg border border-white/[0.1] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/[0.1] disabled:opacity-30"
-              >
-                Next →
-              </button>
+                <span className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-transparent via-white/50 to-transparent"
+                  style={{ animation: "twowayPipelineShimmer 2.4s ease-in-out infinite" }} />
+              </div>
+            </div>
+            <div className="relative z-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              {PIPELINE.map((stage, i) => {
+              const count = statusCounts[stage] || 0;
+              const p = sPal[stage] || {};
+              const Icon = STATUS_ICONS[stage] || ShoppingBag;
+              const active = count > 0;
+              const isLatest = i === activePipelineIndex;
+              return (
+                <button
+                  key={stage}
+                  type="button"
+                  onClick={() => setStatus(statusFilter === stage ? "" : stage)}
+                  className="group flex flex-col items-center gap-2 text-center transition"
+                >
+                  <div className="relative flex h-13 w-13 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5"
+                    style={{
+                      width: 52,
+                      height: 52,
+                      backgroundColor: active
+                        ? (isDark ? p.bg : "#ffffff")
+                        : (isDark ? "#111827" : "#ffffff"),
+                      color: active ? p.dot : text3,
+                      borderColor: active ? `${p.dot}66` : (isDark ? "#263145" : "#e5e7eb"),
+                      boxShadow: active
+                        ? `0 14px 34px ${p.dot}26, inset 0 1px 0 rgba(255,255,255,0.7)`
+                        : isDark ? "none" : "0 8px 20px rgba(15,23,42,0.05)",
+                    }}>
+                    {active && (
+                      <span className="absolute inset-[-7px] rounded-[1.35rem] border"
+                        style={{
+                          borderColor: `${p.dot}30`,
+                          backgroundColor: `${p.dot}12`,
+                          animation: isLatest ? "twowayPipelinePulse 1.9s ease-in-out infinite" : undefined,
+                        }}
+                      />
+                    )}
+                    <svg className="absolute inset-0 h-full w-full opacity-70" viewBox="0 0 56 56" aria-hidden="true">
+                      <path
+                        d="M10 19c0-4.97 4.03-9 9-9h18c4.97 0 9 4.03 9 9v18c0 4.97-4.03 9-9 9H19c-4.97 0-9-4.03-9-9V19Z"
+                        fill={active ? `${p.dot}18` : isDark ? "rgba(148,163,184,0.08)" : "rgba(15,23,42,0.04)"}
+                      />
+                    </svg>
+                    <Icon className="relative h-5 w-5" strokeWidth={2.25} />
+                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[10px] font-bold tabular-nums"
+                      style={{
+                        backgroundColor: active ? p.dot : (isDark ? "#1e293b" : "#f8fafc"),
+                        borderColor: card,
+                        color: active ? "#fff" : text3,
+                      }}>
+                      {count}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                    style={{ color: active ? (isLatest ? p.dot : text1) : text3 }}>
+                    {stage}
+                  </span>
+                  <span className="text-[10px]" style={{ color: text3 }}>
+                    {count > 0 ? `${count} orders` : "No orders"}
+                  </span>
+                </button>
+              );
+            })}
             </div>
           </div>
         </div>
       )}
+
+      {/* ── Filter bar ── */}
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl px-5 py-4"
+        style={{ backgroundColor: card, border: `1px solid ${border}` }}>
+        {/* Search */}
+        <div className="flex-1 min-w-[220px]">
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: text3 }}>
+            Search
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: text3 }} />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Order number or customer…"
+              className="w-full rounded-xl py-2.5 pl-9 pr-3 text-sm transition focus:outline-none"
+              style={{
+                backgroundColor: isDark ? "#111111" : "#f8fafc",
+                border: `1px solid ${border}`,
+                color: text1,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: text3 }}>Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-xl py-2.5 px-3 text-sm transition focus:outline-none appearance-none cursor-pointer"
+            style={{ backgroundColor: isDark ? "#111111" : "#f8fafc", border: `1px solid ${border}`, color: text1, minWidth: 140 }}
+          >
+            <option value="">All Statuses</option>
+            {ALL_STATUSES.map((s) => (
+              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Payment */}
+        <div>
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: text3 }}>Payment</label>
+          <select
+            value={payFilter}
+            onChange={(e) => setPayFilter(e.target.value)}
+            className="rounded-xl py-2.5 px-3 text-sm transition focus:outline-none appearance-none cursor-pointer"
+            style={{ backgroundColor: isDark ? "#111111" : "#f8fafc", border: `1px solid ${border}`, color: text1, minWidth: 140 }}
+          >
+            <option value="">All Payments</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+
+        {/* Method */}
+        <div>
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: text3 }}>Method</label>
+          <select
+            value={methodFilter}
+            onChange={(e) => setMethodFilter(e.target.value)}
+            className="rounded-xl py-2.5 px-3 text-sm transition focus:outline-none appearance-none cursor-pointer"
+            style={{ backgroundColor: isDark ? "#111111" : "#f8fafc", border: `1px solid ${border}`, color: text1, minWidth: 140 }}
+          >
+            <option value="">All Methods</option>
+            {payMethods.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        {/* Date range */}
+        <div>
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: text3 }}>From</label>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-xl py-2.5 px-3 text-sm focus:outline-none"
+            style={{ backgroundColor: isDark ? "#111111" : "#f8fafc", border: `1px solid ${border}`, color: text1, colorScheme: isDark ? "dark" : "light" }} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: text3 }}>To</label>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-xl py-2.5 px-3 text-sm focus:outline-none"
+            style={{ backgroundColor: isDark ? "#111111" : "#f8fafc", border: `1px solid ${border}`, color: text1, colorScheme: isDark ? "dark" : "light" }} />
+        </div>
+
+        {hasFilters && (
+          <button type="button"
+            onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setPayFilter(""); setMethodFilter(""); }}
+            className="inline-flex items-center gap-1.5 rounded-xl py-2.5 px-3 text-sm font-medium transition hover:opacity-80"
+            style={{ backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6", color: text2, border: `1px solid ${border}` }}>
+            <X className="h-3.5 w-3.5" />Clear
+          </button>
+        )}
+      </div>
+
+      {/* ── Summary row ── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm" style={{ color: text2 }}>
+          {loading ? "Loading…" : (
+            <>Showing <span className="font-semibold" style={{ color: text1 }}>
+              {sorted.length === 0 ? 0 : `${(page - 1) * PER_PAGE + 1}–${Math.min(page * PER_PAGE, sorted.length)}`}
+            </span> of <span className="font-semibold" style={{ color: text1 }}>{sorted.length}</span> orders
+              {sorted.length !== total && <> of {total}</>}
+              {" · "}Revenue <span className="font-semibold" style={{ color: text1 }}>{formatLkr(totalRevenue)}</span>
+            </>
+          )}
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2 rounded-xl px-3 py-1.5"
+              style={{ backgroundColor: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)" }}>
+              <span className="text-sm font-semibold" style={{ color: "#f97316" }}>{selected.size} selected</span>
+              <button type="button" onClick={() => setSelected(new Set())}
+                className="text-xs font-medium hover:underline" style={{ color: text3 }}>
+                Clear
+              </button>
+            </div>
+          )}
+          {!loading && sorted.length > 0 && <PaginationControls />}
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl px-4 py-3 text-sm"
+          style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
+          {error}
+        </div>
+      )}
+
+      {/* ── Table ── */}
+      <div className="overflow-hidden rounded-2xl"
+        style={{ backgroundColor: card, border: `1px solid ${border}`, boxShadow: isDark ? "0 4px 24px rgba(0,0,0,0.4)" : "0 1px 4px rgba(0,0,0,0.05)" }}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead style={{ borderBottom: `1px solid ${dividerClr}`, backgroundColor: sub }}>
+              <tr>
+                <th className="w-10 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={paged.length > 0 && selected.size === paged.length}
+                    onChange={toggleSelectAll}
+                    className="rounded"
+                    style={{ accentColor: "#f97316" }}
+                  />
+                </th>
+                <Th col="order_number">Order</Th>
+                <Th col="customer_name">Customer</Th>
+                <Th col="created_at">Date</Th>
+                <Th col="total_amount" cls="text-right">Total</Th>
+                <Th col="payment_method">Method</Th>
+                <Th col="payment_status">Payment</Th>
+                <Th col="status">Status</Th>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
+                  style={{ color: text3 }}>Age</th>
+                <th className="w-10 px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${dividerClr}` }}>
+                    <td className="px-4 py-3.5"><Skeleton w="w-4" /></td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-24" /></td>
+                    <td className="px-4 py-3.5">
+                      <Skeleton w="w-32" />
+                      <Skeleton w="w-24 mt-1" h="h-3" />
+                    </td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-20" /></td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-20" /></td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-16" /></td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-16" /></td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-20" /></td>
+                    <td className="px-4 py-3.5"><Skeleton w="w-14" /></td>
+                    <td className="px-4 py-3.5" />
+                  </tr>
+                ))
+              ) : sorted.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="py-20 text-center">
+                    <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl"
+                      style={{ backgroundColor: isDark ? "#111111" : "#f3f4f6" }}>
+                      <ShoppingBag className="h-7 w-7" style={{ color: text3 }} />
+                    </div>
+                    <p className="mt-4 text-base font-semibold" style={{ color: text1 }}>No orders found</p>
+                    <p className="mt-1 text-sm" style={{ color: text2 }}>Try adjusting your search or filters.</p>
+                  </td>
+                </tr>
+              ) : (
+                paged.map((o) => (
+                  <tr
+                    key={o.id}
+                    onClick={() => navigate(`/admin/orders/${o.id}`)}
+                    onMouseEnter={() => setHoverRow(o.id)}
+                    onMouseLeave={() => setHoverRow(null)}
+                    style={{
+                      borderBottom: `1px solid ${dividerClr}`,
+                      backgroundColor: hoverRow_id === o.id ? hoverRow : "transparent",
+                      cursor: "pointer",
+                      transition: "background-color 120ms ease",
+                    }}
+                  >
+                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(o.id)}
+                        onChange={() => toggleSelect(o.id)}
+                        className="rounded"
+                        style={{ accentColor: "#f97316" }}
+                      />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="font-mono text-xs font-bold" style={{ color: "#f97316" }}>
+                        {o.order_number}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 max-w-[180px]">
+                      <p className="truncate text-sm font-medium" style={{ color: text1 }}>{o.customer_name || "—"}</p>
+                      <p className="truncate text-[11px]" style={{ color: text3 }}>{o.customer_email || ""}</p>
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap text-sm" style={{ color: text2 }}>
+                      {formatDate(o.created_at)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: text1 }}>
+                        {formatLkr(o.total_amount)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: text2 }}>
+                        {o.payment_method || "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <PaymentPill status={o.payment_status} palette={pyPal} />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StatusPill status={o.status} palette={sPal} />
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap text-xs" style={{ color: text3 }}>
+                      {timeAgo(o.created_at)}
+                    </td>
+                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <button type="button"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:opacity-70"
+                        style={{ backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6" }}>
+                        <MoreVertical className="h-3.5 w-3.5" style={{ color: text3 }} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Pagination ── */}
+        {!loading && sorted.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-4"
+            style={{ borderTop: `1px solid ${dividerClr}` }}>
+
+            {/* left: record range */}
+            <p className="text-sm" style={{ color: text3 }}>
+              <span className="font-semibold tabular-nums" style={{ color: text1 }}>
+                {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, sorted.length)}
+              </span>
+              {" "}of{" "}
+              <span className="font-semibold" style={{ color: text1 }}>{sorted.length}</span>
+              {" "}orders
+            </p>
+
+            {/* right: arrow + page pills + arrow */}
+            <div className="flex items-center gap-2">
+
+              <button
+                type="button"
+                aria-label="Previous transactions"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-30"
+                style={{
+                  backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+                  border: `1px solid ${border}`,
+                  color: text1,
+                }}
+              >
+                &lt;
+              </button>
+
+              {/* page pills */}
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const delta = 2;
+                  const pages = [];
+                  for (let p = 1; p <= totalPages; p++) {
+                    if (
+                      p === 1 || p === totalPages ||
+                      (p >= page - delta && p <= page + delta)
+                    ) pages.push(p);
+                  }
+                  const result = [];
+                  let prev = 0;
+                  for (const p of pages) {
+                    if (prev && p - prev > 1) {
+                      result.push(
+                        <span key={`gap-${p}`} className="px-1 text-sm" style={{ color: text3 }}>…</span>
+                      );
+                    }
+                    result.push(
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPage(p)}
+                        className="flex h-9 min-w-[36px] items-center justify-center rounded-xl px-2 text-sm font-semibold transition"
+                        style={{
+                          backgroundColor: p === page ? "#f97316" : "transparent",
+                          color: p === page ? "#fff" : text2,
+                          border: p === page ? "1px solid #f97316" : "1px solid transparent",
+                        }}
+                      >
+                        {p}
+                      </button>
+                    );
+                    prev = p;
+                  }
+                  return result;
+                })()}
+              </div>
+
+              <button
+                type="button"
+                aria-label="Next transactions"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-30"
+                style={{
+                  backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+                  border: `1px solid ${border}`,
+                  color: text1,
+                }}
+              >
+                &gt;
+              </button>
+
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { apiFetch } from "../lib/apiClient";
+import { toApiOrderStatus } from "../lib/orderStatus";
 
 function withSearchParams(path, params) {
   const sp = new URLSearchParams();
@@ -30,7 +31,7 @@ export function fetchAdminOrder(id) {
 export function updateAdminOrderStatus(id, status) {
   return apiFetch(`/admin/orders/${id}/status`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status: toApiOrderStatus(status) }),
   });
 }
 

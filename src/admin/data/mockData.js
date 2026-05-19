@@ -108,17 +108,33 @@ export const coupons = [
 // ─── Returns ───
 export const returns = [
   { id: "RET001", orderId: "9", orderNumber: "ORD-2026-009", customerId: "C001", customerName: "Kasun Perera", productId: "P012", productName: "Leather Messenger Bag", reason: "Strap buckle defective", condition: "Damaged", refundAmount: 8500, status: "REFUNDED", requestedAt: d(28), resolvedAt: d(20) },
-  { id: "RET002", orderId: "1", orderNumber: "ORD-2026-001", customerId: "C004", customerName: "Ruwan Jayawardena", productId: "P005", productName: "Linen Blend Kurta Set", reason: "Size too small", condition: "Good", refundAmount: 3800, status: "RETURN_RECEIVED", requestedAt: d(22), resolvedAt: null },
+  { id: "RET002", orderId: "1", orderNumber: "ORD-2026-001", customerId: "C004", customerName: "Ruwan Jayawardena", productId: "P005", productName: "Linen Blend Kurta Set", reason: "Size too small", condition: "Good", refundAmount: 3800, status: "INSPECTED", requestedAt: d(22), resolvedAt: null },
   { id: "RET003", orderId: "10", orderNumber: "ORD-2026-010", customerId: "C006", customerName: "Ashan Bandara", productId: "P007", productName: "Batik Print Casual Shirt", reason: "Color faded after wash", condition: "Used", refundAmount: 2600, status: "REQUESTED", requestedAt: d(2), resolvedAt: null },
   { id: "RET004", orderId: "3", orderNumber: "ORD-2026-003", customerId: "C003", customerName: "Samanthi Fernando", productId: "P009", productName: "Coconut Hair Oil Elixir", reason: "Wrong product received", condition: "Unopened", refundAmount: 1200, status: "APPROVED", requestedAt: d(1), resolvedAt: null },
+  { id: "RET005", orderId: "2", orderNumber: "ORD-2026-002", customerId: "C001", customerName: "Kasun Perera", productId: "P001", productName: "Wireless Noise Cancelling Headphones", reason: "Audio cuts out intermittently", condition: "Damaged", refundAmount: 15900, status: "RETURN_RECEIVED", requestedAt: d(8), resolvedAt: null },
+  { id: "RET006", orderId: "4", orderNumber: "ORD-2026-004", customerId: "C005", customerName: "Dilini Wickramasinghe", productId: "P012", productName: "Leather Messenger Bag", reason: "Changed mind before shipping", condition: "Unopened", refundAmount: 8500, status: "REJECTED", requestedAt: d(15), resolvedAt: d(12) },
+  { id: "RET007", orderId: "5", orderNumber: "ORD-2026-005", customerId: "C008", customerName: "Pradeep Gunasekara", productId: "P002", productName: "Smart Fitness Band Pro", reason: "Does not pair with phone", condition: "Good", refundAmount: 8900, status: "APPROVED", requestedAt: d(4), resolvedAt: null },
+  { id: "RET008", orderId: "6", orderNumber: "ORD-2026-006", customerId: "C002", customerName: "Nimal De Silva", productId: "P003", productName: "Portable Bluetooth Speaker", reason: "Order cancelled after payment attempt", condition: "Unopened", refundAmount: 5200, status: "REQUESTED", requestedAt: d(9), resolvedAt: null },
+  { id: "RET009", orderId: "7", orderNumber: "ORD-2026-007", customerId: "C007", customerName: "Malini Rajapaksa", productId: "P008", productName: "Ayurvedic Face Serum", reason: "Allergic reaction reported", condition: "Used", refundAmount: 2800, status: "INSPECTED", requestedAt: d(6), resolvedAt: null },
+  { id: "RET010", orderId: "8", orderNumber: "ORD-2026-008", customerId: "C004", customerName: "Ruwan Jayawardena", productId: "P004", productName: "USB-C Fast Charger 65W", reason: "Not compatible with device", condition: "Good", refundAmount: 3200, status: "REFUNDED", requestedAt: d(18), resolvedAt: d(14) },
+  { id: "RET011", orderId: "1", orderNumber: "ORD-2026-001", customerId: "C004", customerName: "Ruwan Jayawardena", productId: "P008", productName: "Ayurvedic Face Serum", reason: "Duplicate order by mistake", condition: "Unopened", refundAmount: 2800, status: "RETURN_RECEIVED", requestedAt: d(12), resolvedAt: null },
+  { id: "RET012", orderId: "9", orderNumber: "ORD-2026-009", customerId: "C001", customerName: "Kasun Perera", productId: "P006", productName: "Cotton Saree - Handloom", reason: "Weaving defect on border", condition: "Damaged", refundAmount: 12000, status: "REQUESTED", requestedAt: d(0, 4), resolvedAt: null },
 ];
 
 // ─── Invoices ───
 export const invoices = [
-  { id: "INV001", invoiceNumber: "TWO-INV-2026-001", orderId: "1", orderNumber: "ORD-2026-001", customerName: "Ruwan Jayawardena", amount: 38200, paymentMethod: "PAYHERE", status: "generated", createdAt: d(28) },
-  { id: "INV002", invoiceNumber: "TWO-INV-2026-002", orderId: "3", orderNumber: "ORD-2026-003", customerName: "Samanthi Fernando", amount: 18700, paymentMethod: "STRIPE", status: "generated", createdAt: d(3) },
-  { id: "INV003", invoiceNumber: "TWO-INV-2026-003", orderId: "9", orderNumber: "ORD-2026-009", customerName: "Kasun Perera", amount: 24500, paymentMethod: "PAYHERE", status: "generated", createdAt: d(35) },
+  { id: "INV001", invoiceNumber: "TWO-INV-2026-001", orderId: "1", orderNumber: "ORD-2026-001", customerName: "Ruwan Jayawardena", amount: 38200, paymentMethod: "PAYHERE", status: "paid", createdAt: d(28) },
+  { id: "INV002", invoiceNumber: "TWO-INV-2026-002", orderId: "3", orderNumber: "ORD-2026-003", customerName: "Samanthi Fernando", amount: 18700, paymentMethod: "STRIPE", status: "sent", createdAt: d(3) },
+  { id: "INV003", invoiceNumber: "TWO-INV-2026-003", orderId: "9", orderNumber: "ORD-2026-009", customerName: "Kasun Perera", amount: 24500, paymentMethod: "PAYHERE", status: "paid", createdAt: d(35) },
   { id: "INV004", invoiceNumber: "TWO-INV-2026-004", orderId: "10", orderNumber: "ORD-2026-010", customerName: "Ashan Bandara", amount: 2600, paymentMethod: "COD", status: "generated", createdAt: d(45) },
+  { id: "INV005", invoiceNumber: "TWO-INV-2026-005", orderId: "2", orderNumber: "ORD-2026-002", customerName: "Kasun Perera", amount: 15900, paymentMethod: "COD", status: "overdue", createdAt: d(20) },
+  { id: "INV006", invoiceNumber: "TWO-INV-2026-006", orderId: "4", orderNumber: "ORD-2026-004", customerName: "Dilini Wickramasinghe", amount: 8500, paymentMethod: "PAYHERE", status: "sent", createdAt: d(2) },
+  { id: "INV007", invoiceNumber: "TWO-INV-2026-007", orderId: "5", orderNumber: "ORD-2026-005", customerName: "Pradeep Gunasekara", amount: 29600, paymentMethod: "COD", status: "generated", createdAt: d(1) },
+  { id: "INV008", invoiceNumber: "TWO-INV-2026-008", orderId: "6", orderNumber: "ORD-2026-006", customerName: "Nimal De Silva", amount: 5200, paymentMethod: "PAYHERE", status: "cancelled", createdAt: d(10) },
+  { id: "INV009", invoiceNumber: "TWO-INV-2026-009", orderId: "7", orderNumber: "ORD-2026-007", customerName: "Malini Rajapaksa", amount: 11700, paymentMethod: "STRIPE", status: "paid", createdAt: d(0, 8) },
+  { id: "INV010", invoiceNumber: "TWO-INV-2026-010", orderId: "8", orderNumber: "ORD-2026-008", customerName: "Ruwan Jayawardena", amount: 3200, paymentMethod: "COD", status: "overdue", createdAt: d(14) },
+  { id: "INV011", invoiceNumber: "TWO-INV-2026-011", orderId: "1", orderNumber: "ORD-2026-001", customerName: "Ruwan Jayawardena", amount: 2800, paymentMethod: "PAYHERE", status: "generated", createdAt: d(12) },
+  { id: "INV012", invoiceNumber: "TWO-INV-2026-012", orderId: "9", orderNumber: "ORD-2026-009", customerName: "Kasun Perera", amount: 12000, paymentMethod: "STRIPE", status: "sent", createdAt: d(8) },
 ];
 
 // ─── Notifications ───

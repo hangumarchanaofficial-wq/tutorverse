@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import {
   StatusBadge, OrderTimeline, ProductThumbnail,
   ConfirmDialog, Skeleton, Select, Btn, useToast,
@@ -7,6 +8,18 @@ import {
 } from "../../admin/components/ui";
 import { orders as mockOrders } from "../../admin/data/mockData";
 import { fetchAdminOrder, updateAdminOrderStatus, downloadAdminInvoice } from "../../services/adminApi";
+import { normalizeOrderPipelineStatus } from "../../lib/orderStatus";
+
+const LINE_ITEMS_PAGE_SIZE = 10;
+
+const TIMELINE_STAGE_INDEX = {
+  PLACED: 0,
+  CONFIRMED: 1,
+  PROCESSING: 2,
+  PACKED: 3,
+  SHIPPED: 4,
+  DELIVERED: 5,
+};
 
 const STATUS_OPTIONS = [
   { value: "PLACED", label: "Placed" },
@@ -26,6 +39,140 @@ function Card({ title, badge, children, className = "" }) {
         {badge}
       </div>
       <div className="mt-4">{children}</div>
+    </div>
+  );
+}
+
+function SkeletonCard({ titleWidth = "w-24", children, className = "" }) {
+  return (
+    <div className={`overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] ${className}`}>
+      <div className="flex items-center justify-between">
+        <Skeleton className={`h-3 ${titleWidth}`} />
+        <Skeleton className="h-7 w-7 rounded-lg" />
+      </div>
+      <div className="mt-5">{children}</div>
+    </div>
+  );
+}
+
+function AdminOrderDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3 w-14" />
+          <Skeleton className="h-3 w-2 rounded-full" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-8 w-44" />
+            <Skeleton className="h-9 w-9 rounded-lg" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-24 rounded-lg" />
+            <Skeleton className="h-10 w-28 rounded-lg" />
+          </div>
+        </div>
+        <Skeleton className="h-3 w-80 max-w-full" />
+      </div>
+
+      <SkeletonCard titleWidth="w-28">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="flex flex-col items-center gap-2">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-2.5 w-16" />
+            </div>
+          ))}
+        </div>
+      </SkeletonCard>
+
+      <SkeletonCard titleWidth="w-24">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[200px] flex-1">
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
+          <Skeleton className="h-10 w-28 rounded-lg" />
+        </div>
+      </SkeletonCard>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <SkeletonCard titleWidth="w-20">
+          <div className="flex items-start gap-4">
+            <Skeleton className="h-12 w-12 rounded-xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-44" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
+        </SkeletonCard>
+        <SkeletonCard titleWidth="w-32">
+          <div className="space-y-3">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="flex items-center justify-between gap-4">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            ))}
+          </div>
+        </SkeletonCard>
+        <SkeletonCard titleWidth="w-20">
+          <div className="space-y-3">
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        </SkeletonCard>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+        <div className="flex items-center justify-between border-b border-[#263145] px-5 py-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        <div className="divide-y divide-[#263145]/60">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="grid gap-4 px-5 py-4 sm:grid-cols-[1fr_80px_120px_120px] sm:items-center">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-11 w-11 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-56 max-w-full" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-10" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SkeletonCard titleWidth="w-28">
+          <div className="space-y-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="flex gap-4">
+                <Skeleton className="h-6 w-6 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SkeletonCard>
+        <SkeletonCard titleWidth="w-28">
+          <Skeleton className="h-28 w-full rounded-lg" />
+          <div className="mt-4 flex justify-end">
+            <Skeleton className="h-9 w-24 rounded-lg" />
+          </div>
+        </SkeletonCard>
+      </div>
     </div>
   );
 }
@@ -75,6 +222,8 @@ export default function AdminOrderDetail() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [itemsPage, setItemsPage] = useState(1);
+  const [isMockOrder, setIsMockOrder] = useState(false);
 
   const notesKey = `admin-order-notes-${id}`;
   const [notes, setNotes] = useState("");
@@ -87,6 +236,10 @@ export default function AdminOrderDetail() {
 
   useEffect(() => {
     if (id) localStorage.setItem("admin-last-order-view", id);
+  }, [id]);
+
+  useEffect(() => {
+    setItemsPage(1);
   }, [id]);
 
   const saveNotes = () => {
@@ -103,15 +256,17 @@ export default function AdminOrderDetail() {
     fetchAdminOrder(id)
       .then((data) => {
         if (!on) return;
+        setIsMockOrder(false);
         setOrder(data);
-        setStatus(data.status || data.orderStatus || "PLACED");
+        setStatus(normalizeOrderPipelineStatus(data.status || data.orderStatus || "PLACED"));
       })
       .catch(() => {
         if (!on) return;
-        const mock = mockOrders.find((o) => o.id === id);
+        const mock = mockOrders.find((o) => String(o.id) === String(id));
         if (mock) {
           const normalized = normalizeMock(mock);
-          setOrder(normalized);
+          setIsMockOrder(true);
+          setOrder({ ...normalized, _mock: true });
           setStatus(normalized.status);
         } else {
           setError("Order not found");
@@ -141,17 +296,50 @@ export default function AdminOrderDetail() {
     }
   };
 
+  const applyStatusLocally = (nextStatus) => {
+    const next = normalizeOrderPipelineStatus(nextStatus);
+    setOrder((prev) => ({
+      ...prev,
+      status: next,
+      orderStatus: next,
+    }));
+    setStatus(next);
+  };
+
   const saveStatus = async () => {
-    if (!order || status === (order.status || order.orderStatus)) return;
+    const previous = normalizeOrderPipelineStatus(order?.status || order?.orderStatus || "PLACED");
+    if (!order || status === previous) {
+      setShowConfirm(false);
+      return;
+    }
     setSaving(true);
     try {
+      if (isMockOrder || order._mock) {
+        applyStatusLocally(status);
+        toast?.("Order status updated");
+        setShowConfirm(false);
+        return;
+      }
       const updated = await updateAdminOrderStatus(order.id, status);
-      setOrder((prev) => ({ ...prev, ...updated, status }));
+      const next = normalizeOrderPipelineStatus(updated?.status || status);
+      setOrder((prev) => ({
+        ...prev,
+        ...updated,
+        status: next,
+        orderStatus: next,
+      }));
+      setStatus(next);
       toast?.("Order status updated");
       setShowConfirm(false);
-    } catch {
-      setOrder((prev) => ({ ...prev, status }));
-      toast?.("Status updated locally", "warning");
+    } catch (err) {
+      const msg = String(err?.message || "");
+      const canFallback = /not found|404|failed to update order status/i.test(msg);
+      if (canFallback) {
+        applyStatusLocally(status);
+        toast?.("Order status updated locally", "warning");
+      } else {
+        toast?.(msg || "Could not update order status", "error");
+      }
       setShowConfirm(false);
     } finally {
       setSaving(false);
@@ -167,18 +355,21 @@ export default function AdminOrderDetail() {
     });
   }, [order, toast]);
 
+  const lineItems = order?.order_items || [];
+  const lineItemsPaginated = lineItems.length > LINE_ITEMS_PAGE_SIZE;
+  const lineItemsTotalPages = Math.max(1, Math.ceil(lineItems.length / LINE_ITEMS_PAGE_SIZE));
+  const pagedLineItems = useMemo(() => {
+    if (!lineItemsPaginated) return lineItems;
+    const start = (itemsPage - 1) * LINE_ITEMS_PAGE_SIZE;
+    return lineItems.slice(start, start + LINE_ITEMS_PAGE_SIZE);
+  }, [lineItems, itemsPage, lineItemsPaginated]);
+
+  useEffect(() => {
+    if (itemsPage > lineItemsTotalPages) setItemsPage(lineItemsTotalPages);
+  }, [itemsPage, lineItemsTotalPages]);
+
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-8 w-64" />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Skeleton className="h-48 w-full rounded-xl" />
-          <Skeleton className="h-48 w-full rounded-xl" />
-        </div>
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
+    return <AdminOrderDetailSkeleton />;
   }
 
   if (error && !order) {
@@ -193,9 +384,8 @@ export default function AdminOrderDetail() {
   if (!order) return null;
 
   const orderNum = order.order_number || order.orderNumber || `#${order.id}`;
-  const currentStatus = order.status || order.orderStatus || "PLACED";
+  const currentStatus = normalizeOrderPipelineStatus(order.status || order.orderStatus || "PLACED");
   const ship = order.shipping_payload || {};
-  const items = order.order_items || [];
 
   const timeline = [
     { label: "Order placed", time: order.created_at || order.createdAt, active: true },
@@ -207,17 +397,43 @@ export default function AdminOrderDetail() {
     ...(currentStatus === "CANCELLED" ? [{ label: "Cancelled", time: order.updated_at || order.updatedAt, active: true }] : []),
   ];
 
+  const isCancelledOrder = currentStatus === "CANCELLED";
+  const currentStageIdx = isCancelledOrder ? -1 : (TIMELINE_STAGE_INDEX[currentStatus] ?? 0);
+
   return (
     <>
-      <style>{`@media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`}</style>
+      <style>{`
+        @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
+        @keyframes activityRingPulse {
+          0%, 100% { transform: scale(1); opacity: 0.45; }
+          50% { transform: scale(1.45); opacity: 0.85; }
+        }
+        @keyframes activityDotPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.45); }
+          50% { transform: scale(1.2); box-shadow: 0 0 0 5px rgba(52, 211, 153, 0); }
+        }
+        @keyframes activityRingPulseDanger {
+          0%, 100% { transform: scale(1); opacity: 0.45; }
+          50% { transform: scale(1.45); opacity: 0.85; }
+        }
+        @keyframes activityDotPulseDanger {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.45); }
+          50% { transform: scale(1.2); box-shadow: 0 0 0 5px rgba(248, 113, 113, 0); }
+        }
+        @keyframes activityLineGrow {
+          from { transform: scaleY(0); transform-origin: top; }
+          to { transform: scaleY(1); transform-origin: top; }
+        }
+      `}</style>
 
       <ConfirmDialog
         open={showConfirm}
         title="Update order status"
         message={`Change status from "${currentStatus}" to "${status}"? This action will be reflected immediately.`}
         confirmLabel={saving ? "Updating…" : "Confirm"}
+        busy={saving}
         onConfirm={saveStatus}
-        onCancel={() => setShowConfirm(false)}
+        onCancel={() => !saving && setShowConfirm(false)}
       />
 
       <div className="print-area space-y-6">
@@ -363,7 +579,7 @@ export default function AdminOrderDetail() {
           <div className="flex items-center justify-between border-b border-[#263145] px-5 py-3">
             <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">Line items</h2>
             <span className="rounded-full bg-[#182238] px-2.5 py-0.5 text-[10px] font-semibold text-[#8b95a7]">
-              {items.length} item{items.length !== 1 ? "s" : ""}
+              {lineItems.length} item{lineItems.length !== 1 ? "s" : ""}
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -377,7 +593,7 @@ export default function AdminOrderDetail() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#263145]/60">
-                {items.map((row) => (
+                {pagedLineItems.map((row) => (
                   <tr key={row.id} className="transition hover:bg-[#182238]">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -401,27 +617,153 @@ export default function AdminOrderDetail() {
               </tbody>
             </table>
           </div>
+
+          {lineItemsPaginated && (
+            <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs font-medium text-[#8b95a7]">
+                Show data{" "}
+                <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">
+                  {pagedLineItems.length}
+                </span>
+                of {lineItems.length}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {(() => {
+                  const navItems = lineItemsTotalPages <= 5
+                    ? Array.from({ length: lineItemsTotalPages }, (_, i) => i + 1)
+                    : itemsPage <= 3
+                      ? [1, 2, 3, "end-gap", lineItemsTotalPages]
+                      : itemsPage >= lineItemsTotalPages - 2
+                        ? [1, "start-gap", lineItemsTotalPages - 2, lineItemsTotalPages - 1, lineItemsTotalPages]
+                        : [1, "start-gap", itemsPage - 1, itemsPage, itemsPage + 1, "end-gap", lineItemsTotalPages];
+
+                  const navButtonClass = "flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+                  const ghostStyle = "border-[#263145] bg-[#0f1726] text-[#8b95a7] shadow-sm hover:border-[#d8b84f]/50 hover:bg-[#182238] hover:text-[#f8fafc]";
+                  const activeStyle = "border-[#d8b84f] bg-[#d8b84f] text-[#070b14] shadow-[0_8px_18px_rgba(216,184,79,0.24)]";
+
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="First page"
+                        disabled={itemsPage <= 1}
+                        onClick={() => setItemsPage(1)}
+                        className={`${navButtonClass} ${ghostStyle}`}
+                      >
+                        <ChevronsLeft className="h-4 w-4" strokeWidth={2.4} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Previous page"
+                        disabled={itemsPage <= 1}
+                        onClick={() => setItemsPage((p) => Math.max(1, p - 1))}
+                        className={`${navButtonClass} ${ghostStyle}`}
+                      >
+                        <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                      </button>
+                      {navItems.map((item) => (
+                        typeof item === "number" ? (
+                          <button
+                            key={item}
+                            type="button"
+                            aria-label={`Page ${item}`}
+                            onClick={() => setItemsPage(item)}
+                            className={`${navButtonClass} ${item === itemsPage ? activeStyle : ghostStyle}`}
+                          >
+                            {item}
+                          </button>
+                        ) : (
+                          <span key={item} className="px-1 text-sm font-semibold text-[#8b95a7]">...</span>
+                        )
+                      ))}
+                      <button
+                        type="button"
+                        aria-label="Next page"
+                        disabled={itemsPage >= lineItemsTotalPages}
+                        onClick={() => setItemsPage((p) => Math.min(lineItemsTotalPages, p + 1))}
+                        className={`${navButtonClass} ${ghostStyle}`}
+                      >
+                        <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Last page"
+                        disabled={itemsPage >= lineItemsTotalPages}
+                        onClick={() => setItemsPage(lineItemsTotalPages)}
+                        className={`${navButtonClass} ${ghostStyle}`}
+                      >
+                        <ChevronsRight className="h-4 w-4" strokeWidth={2.4} />
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Activity Timeline */}
         <Card title="Activity Timeline">
-          <div className="space-y-0">
-            {timeline.map((evt, idx) => (
-              <div key={evt.label} className="relative flex gap-4 pb-6 last:pb-0">
-                {idx < timeline.length - 1 && (
-                  <div className="absolute left-[11px] top-6 bottom-0 w-px bg-[#263145]" />
-                )}
-                <div className={`relative flex h-6 w-6 flex-none items-center justify-center rounded-full ${evt.active ? "bg-[#34d399]/20" : "bg-[#263145]"}`}>
-                  <div className={`h-2 w-2 rounded-full ${evt.active ? "bg-[#34d399]" : "bg-[#8b95a7]/40"}`} />
+          <div className="activity-timeline space-y-0">
+            {timeline.map((evt, idx) => {
+              const isCancelStep = evt.label === "Cancelled";
+              const isCurrent = isCancelStep ? isCancelledOrder : idx === currentStageIdx;
+              const isComplete = !isCancelStep && idx < currentStageIdx;
+              const isPending = !isCancelStep && idx > currentStageIdx;
+              const segmentDone = idx < currentStageIdx || (isCancelledOrder && !isCancelStep && evt.active);
+
+              return (
+                <div key={evt.label} className="relative flex gap-4 pb-6 last:pb-0">
+                  {idx < timeline.length - 1 && (
+                    <div
+                      className={[
+                        "activity-timeline__segment absolute left-[11px] top-6 bottom-0 w-px",
+                        segmentDone ? "is-done" : "is-pending",
+                      ].join(" ")}
+                      style={{ animation: segmentDone ? `activityLineGrow 0.5s ease-out ${idx * 0.08}s both` : undefined }}
+                    />
+                  )}
+                  <div
+                    className={[
+                      "activity-timeline__node relative flex h-6 w-6 flex-none items-center justify-center rounded-full",
+                      isCurrent && (isCancelStep ? "is-current is-danger" : "is-current"),
+                      isComplete && "is-complete",
+                      isPending && "is-pending",
+                    ].filter(Boolean).join(" ")}
+                  >
+                    {isCurrent && (
+                      <span
+                        className="activity-timeline__ring absolute inset-0 rounded-full"
+                        style={{
+                          animation: `${isCancelStep ? "activityRingPulseDanger" : "activityRingPulse"} 2s ease-in-out infinite`,
+                        }}
+                      />
+                    )}
+                    <span
+                      className="activity-timeline__dot relative z-10 block h-2 w-2 rounded-full"
+                      style={isCurrent ? {
+                        animation: `${isCancelStep ? "activityDotPulseDanger" : "activityDotPulse"} 2s ease-in-out infinite`,
+                      } : undefined}
+                    />
+                  </div>
+                  <div className="flex-1 pt-0.5">
+                    <p
+                      className={[
+                        "activity-timeline__title text-sm font-medium",
+                        isCurrent && "is-current",
+                        isComplete && "is-complete",
+                        isPending && "is-pending",
+                      ].filter(Boolean).join(" ")}
+                    >
+                      {evt.label}
+                    </p>
+                    <p className="activity-timeline__meta text-xs">
+                      {evt.time ? fmtDateTime(evt.time) : "Pending"}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 pt-0.5">
-                  <p className={`text-sm font-medium ${evt.active ? "text-[#f8fafc]" : "text-[#8b95a7]/50"}`}>{evt.label}</p>
-                  <p className="text-xs text-[#8b95a7]">
-                    {evt.time ? fmtDateTime(evt.time) : "Pending"}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
 

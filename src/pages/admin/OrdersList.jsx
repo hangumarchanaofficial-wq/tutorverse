@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Archive,
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Clock3,
+  PackageCheck,
+  RotateCw,
+  ShoppingBag,
+  Truck,
+  XCircle,
+} from "lucide-react";
+import {
   PageHeader, StatCard, StatusBadge, Input, Select, Btn, ActionMenu,
   BulkActionBar, ConfirmDialog, Skeleton, SkeletonRows, useToast,
   formatLkr, timeAgo, fmtDate,
@@ -12,7 +26,7 @@ const STATUSES = ["ALL", "PLACED", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED
 const PAY_STATUSES = ["ALL", "PAID", "PENDING", "FAILED"];
 const PAY_METHODS = ["ALL", "PAYHERE", "STRIPE", "COD"];
 const PIPELINE = ["PLACED", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED", "DELIVERED"];
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const SORT_FNS = {
   date_desc: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
@@ -141,15 +155,16 @@ export default function OrdersList() {
     );
   };
 
+  const cardIconClass = "h-5 w-5";
   const kpiCards = [
-    { label: "All Orders", value: allOrders.length, variant: null },
-    { label: "Pending", value: statusCounts.PLACED || 0, variant: "warning" },
-    { label: "Confirmed", value: statusCounts.CONFIRMED || 0, variant: null },
-    { label: "Processing", value: statusCounts.PROCESSING || 0, variant: null },
-    { label: "Packed", value: statusCounts.PACKED || 0, variant: null },
-    { label: "Shipped", value: statusCounts.SHIPPED || 0, variant: null },
-    { label: "Delivered", value: statusCounts.DELIVERED || 0, variant: "success" },
-    { label: "Cancelled", value: statusCounts.CANCELLED || 0, variant: "danger" },
+    { label: "All Orders", value: allOrders.length, variant: null, icon: <ShoppingBag className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Pending", value: statusCounts.PLACED || 0, variant: "warning", icon: <Clock3 className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Confirmed", value: statusCounts.CONFIRMED || 0, variant: null, icon: <BadgeCheck className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Processing", value: statusCounts.PROCESSING || 0, variant: null, icon: <RotateCw className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Packed", value: statusCounts.PACKED || 0, variant: null, icon: <Archive className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Shipped", value: statusCounts.SHIPPED || 0, variant: null, icon: <Truck className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Delivered", value: statusCounts.DELIVERED || 0, variant: "success", icon: <PackageCheck className={cardIconClass} strokeWidth={2.2} /> },
+    { label: "Cancelled", value: statusCounts.CANCELLED || 0, variant: "danger", icon: <XCircle className={cardIconClass} strokeWidth={2.2} /> },
   ];
 
   return (
@@ -182,6 +197,7 @@ export default function OrdersList() {
               label={k.label}
               value={k.value}
               variant={k.variant}
+              icon={k.icon}
               onClick={k.label !== "All Orders" ? () => setStatusFilter(k.label === "Pending" ? "PLACED" : k.label.toUpperCase()) : () => setStatusFilter("ALL")}
             />
           ))}
@@ -349,22 +365,85 @@ export default function OrdersList() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-[#8b95a7]">
-            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+      {!loading && filtered.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-[#263145] bg-[#121b2e] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs font-medium text-[#8b95a7]">
+            Show data{" "}
+            <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">
+              {Math.min(PAGE_SIZE, paged.length)}
+            </span>
+            of {filtered.length}
           </span>
-          <div className="flex gap-1">
-            <Btn variant="ghost" size="xs" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</Btn>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-              .map((p, idx, arr) => (
-                <React.Fragment key={p}>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-1 text-[#8b95a7]">…</span>}
-                  <Btn variant={p === page ? "primary" : "ghost"} size="xs" onClick={() => setPage(p)}>{p}</Btn>
-                </React.Fragment>
-              ))}
-            <Btn variant="ghost" size="xs" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next →</Btn>
+          <div className="flex flex-wrap items-center gap-2">
+            {(() => {
+              const navItems = totalPages <= 5
+                ? Array.from({ length: totalPages }, (_, i) => i + 1)
+                : page <= 3
+                  ? [1, 2, 3, "end-gap", totalPages]
+                  : page >= totalPages - 2
+                    ? [1, "start-gap", totalPages - 2, totalPages - 1, totalPages]
+                    : [1, "start-gap", page - 1, page, page + 1, "end-gap", totalPages];
+
+              const navButtonClass = "flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+              const ghostStyle = "border-[#263145] bg-[#0f1726] text-[#8b95a7] shadow-sm hover:border-[#d8b84f]/50 hover:bg-[#182238] hover:text-[#f8fafc]";
+              const activeStyle = "border-[#d8b84f] bg-[#d8b84f] text-[#070b14] shadow-[0_8px_18px_rgba(216,184,79,0.24)]";
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    aria-label="First page"
+                    disabled={page <= 1}
+                    onClick={() => setPage(1)}
+                    className={`${navButtonClass} ${ghostStyle}`}
+                  >
+                    <ChevronsLeft className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Previous page"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className={`${navButtonClass} ${ghostStyle}`}
+                  >
+                    <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                  {navItems.map((item) => (
+                    typeof item === "number" ? (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-label={`Page ${item}`}
+                        onClick={() => setPage(item)}
+                        className={`${navButtonClass} ${item === page ? activeStyle : ghostStyle}`}
+                      >
+                        {item}
+                      </button>
+                    ) : (
+                      <span key={item} className="px-1 text-sm font-semibold text-[#8b95a7]">...</span>
+                    )
+                  ))}
+                  <button
+                    type="button"
+                    aria-label="Next page"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className={`${navButtonClass} ${ghostStyle}`}
+                  >
+                    <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Last page"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(totalPages)}
+                    className={`${navButtonClass} ${ghostStyle}`}
+                  >
+                    <ChevronsRight className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

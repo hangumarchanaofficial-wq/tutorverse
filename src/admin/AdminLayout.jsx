@@ -160,7 +160,7 @@ function AdminLayout() {
   const [inboxUnread, setInboxUnread] = useState(initialInboxUnread);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
   const [productNavOpen, setProductNavOpen] = useState(() => location.pathname.startsWith("/admin/products"));
   const [categoryNavOpen, setCategoryNavOpen] = useState(() => location.pathname.startsWith("/admin/categories"));
   const [attributesNavOpen, setAttributesNavOpen] = useState(() => location.pathname.startsWith("/admin/attributes"));
@@ -486,9 +486,6 @@ function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-1">
-            <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]" aria-label="Language">
-              <span className="text-sm">🇬🇧</span>
-            </button>
             <button
               type="button"
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]"
@@ -511,15 +508,6 @@ function AdminLayout() {
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 1 1-6 0" /></svg>
               {unreadCount > 0 && <span className="absolute right-[5px] top-[5px] h-1.5 w-1.5 rounded-full bg-[#f04438]" />}
             </Link>
-            <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]" aria-label="Chat">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-            </button>
-            <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]" aria-label="Fullscreen">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5" /></svg>
-            </button>
-            <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]" aria-label="Apps">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" strokeLinecap="round" /></svg>
-            </button>
             <div className="mx-2 h-5 w-px bg-[#eaecf0]" />
             <div className="flex items-center gap-2 pr-1">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fde8d8] text-xs font-bold text-[#c2410c]">
@@ -530,9 +518,6 @@ function AdminLayout() {
                 <p className="text-xs text-[#98a2b3]">{adminBypass && !user ? "Dev Admin" : "Sale Administrator"}</p>
               </div>
             </div>
-            <Link to="/admin/settings" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]" aria-label="Settings">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="m12 15.5 0 0a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.4-3.5a7.4 7.4 0 0 0-.1-1l2-1.6-2-3.4-2.4.8a7.5 7.5 0 0 0-1.7-1L15 3h-6l-.2 2.8a7.5 7.5 0 0 0-1.7 1l-2.4-.8-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2l-2 1.6 2 3.4 2.4-.8a7.5 7.5 0 0 0 1.7 1L9 21h6l.2-2.8a7.5 7.5 0 0 0 1.7-1l2.4.8 2-3.4-2-1.6c.1-.3.1-.7.1-1Z" /></svg>
-            </Link>
           </div>
         </header>
 

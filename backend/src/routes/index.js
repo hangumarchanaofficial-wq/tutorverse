@@ -12,14 +12,50 @@ import { hashIdempotencyKey } from "../utils/idempotency.js";
 import { generateInvoiceNumber, generateOrderNumber } from "../services/orderNumber.js";
 import { attachOrderToClaim, claimIdempotencyKey, releaseClaim } from "../services/idempotencyStore.js";
 
-const ORDER_STATUSES = ["pending", "processing", "completed", "cancelled"];
+const ORDER_STATUSES = [
+  "pending",
+  "placed",
+  "confirmed",
+  "processing",
+  "packed",
+  "shipped",
+  "completed",
+  "cancelled",
+];
 const INTERNAL_WEBHOOK_SECRET = process.env.INTERNAL_WEBHOOK_SECRET || "";
 
 const router = express.Router();
+const SUPABASE_READ_TIMEOUT_MS = Number(process.env.SUPABASE_READ_TIMEOUT_MS || 5_000);
 
 function isTableMissing(err) {
   const msg = [err?.message, err?.details].filter(Boolean).join(" ");
   return /schema cache|relation .* does not exist/.test(msg);
+}
+
+function isSupabaseTimeout(err) {
+  return err?.name === "AbortError" || err?.status === 504 || /aborted|timed out/i.test(err?.message || "");
+}
+
+function isDataSourceUnavailable(err) {
+  const msg = [err?.message, err?.details].filter(Boolean).join(" ");
+  return isSupabaseTimeout(err) || /fetch failed|network|failed to fetch/i.test(msg);
+}
+
+async function supabaseRead(query, timeoutMs = SUPABASE_READ_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const runnable = typeof query.abortSignal === "function" ? query.abortSignal(controller.signal) : query;
+
+  try {
+    return await runnable;
+  } catch (error) {
+    if (isSupabaseTimeout(error)) {
+      throw new HttpError(504, "Data source timed out", error.message);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const orderSchema = Joi.object({
@@ -606,11 +642,17 @@ router.get("/admin/orders", requireAuth, requireAdmin, async (req, res, next) =>
       .range(offset, offset + limit - 1);
     if (status) query = query.eq("status", status);
 
-    const { data, error, count } = await query;
+    const { data, error, count } = await supabaseRead(query);
+    if (isDataSourceUnavailable(error)) {
+      return res.json({ items: [], total: 0, warning: "Data source unavailable" });
+    }
     if (error) throw new HttpError(500, "Failed to load orders", error.message);
     res.json({ items: data || [], total: count ?? 0 });
   } catch (error) {
     if (isTableMissing(error)) return res.json({ items: [], total: 0 });
+    if (isDataSourceUnavailable(error)) {
+      return res.json({ items: [], total: 0, warning: "Data source unavailable" });
+    }
     next(error);
   }
 });
@@ -620,14 +662,18 @@ router.get("/admin/orders/:id", requireAuth, requireAdmin, async (req, res, next
     const orderId = Number(req.params.id);
     if (!Number.isFinite(orderId)) throw new HttpError(400, "Invalid order id");
 
-    const { data, error } = await supabaseAdmin
-      .from("orders")
-      .select("*,order_items(*)")
-      .eq("id", orderId)
-      .single();
+    const { data, error } = await supabaseRead(
+      supabaseAdmin
+        .from("orders")
+        .select("*,order_items(*)")
+        .eq("id", orderId)
+        .single()
+    );
+    if (isDataSourceUnavailable(error)) throw new HttpError(504, "Data source unavailable");
     if (error || !data) throw new HttpError(404, "Order not found");
     res.json(data);
   } catch (error) {
+    if (isDataSourceUnavailable(error)) return next(new HttpError(504, "Data source unavailable"));
     next(error);
   }
 });
@@ -767,10 +813,10 @@ router.get("/admin/analytics", requireAuth, requireAdmin, async (req, res, next)
     ));
     const monthsBackStartIso = monthsBackStart.toISOString();
 
-    // Each query is independent; if one table is missing or RLS blocks, we
-    // still want the others to render. Settle-style guards keep the dashboard
-    // resilient instead of greying out the whole page.
-    const safe = (p) => p.then((r) => r).catch(() => ({ data: null, count: null, error: true }));
+    // Each query is independent; if one table is missing, RLS blocks, or
+    // Supabase is slow, still return a payload so the dashboard can render.
+    const safe = (query) =>
+      supabaseRead(query).catch(() => ({ data: null, count: null, error: true }));
 
     const [
       { count: ordersAllTime },
@@ -1333,12 +1379,14 @@ router.patch("/admin/orders/:id/status", requireAuth, requireAdmin, async (req, 
     const { error: valErr, value } = statusSchema.validate(req.body, { abortEarly: false });
     if (valErr) throw new HttpError(400, "Invalid status payload", valErr.details);
 
-    const { data, error } = await supabaseAdmin
-      .from("orders")
-      .update({ status: value.status })
-      .eq("id", orderId)
-      .select("*")
-      .maybeSingle();
+    const { data, error } = await supabaseRead(
+      supabaseAdmin
+        .from("orders")
+        .update({ status: value.status })
+        .eq("id", orderId)
+        .select("*")
+        .maybeSingle()
+    );
     if (error) throw new HttpError(500, "Failed to update order status", error.message);
     if (!data) throw new HttpError(404, "Order not found");
 
