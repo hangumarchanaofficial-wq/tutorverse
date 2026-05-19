@@ -333,17 +333,27 @@ export function BulkActionBar({ count, onClear, children }) {
 }
 
 // ─── ProductThumbnail ───
+const PRODUCT_THUMB_FALLBACK =
+  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&auto=format";
+
 export function ProductThumbnail({ src, alt = "", size = 40 }) {
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    setFailed(false);
+  }, [src]);
+  const displaySrc = src && !failed ? src : PRODUCT_THUMB_FALLBACK;
+
   return (
     <div
       className="flex-none overflow-hidden rounded-lg bg-[#182238]"
       style={{ width: size, height: size }}
     >
-      {src ? (
-        <img src={src} alt={alt} className="h-full w-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[10px] text-[#8b95a7]">IMG</div>
-      )}
+      <img
+        src={displaySrc}
+        alt={alt}
+        className="h-full w-full object-cover"
+        onError={() => setFailed(true)}
+      />
     </div>
   );
 }

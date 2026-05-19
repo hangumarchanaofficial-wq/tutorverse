@@ -68,7 +68,15 @@ const navSections = [
           { to: "/admin/attributes/new", label: "Add Attributes", match: "new" },
         ],
       },
-      { to: "/admin/brands", label: "Brands", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+      {
+        key: "brands-menu",
+        label: "Brands",
+        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+        children: [
+          { to: "/admin/brands", label: "All Brands", end: true },
+          { to: "/admin/brands/new", label: "Add Brand", match: "new" },
+        ],
+      },
     ],
   },
   {
@@ -164,6 +172,7 @@ function AdminLayout() {
   const [productNavOpen, setProductNavOpen] = useState(() => location.pathname.startsWith("/admin/products"));
   const [categoryNavOpen, setCategoryNavOpen] = useState(() => location.pathname.startsWith("/admin/categories"));
   const [attributesNavOpen, setAttributesNavOpen] = useState(() => location.pathname.startsWith("/admin/attributes"));
+  const [brandsNavOpen, setBrandsNavOpen] = useState(() => location.pathname.startsWith("/admin/brands"));
   const [orderNavOpen, setOrderNavOpen] = useState(() => location.pathname.startsWith("/admin/orders"));
   const [usersNavOpen, setUsersNavOpen] = useState(() => location.pathname.startsWith("/admin/users"));
   const [inboxNavOpen, setInboxNavOpen] = useState(() => location.pathname.startsWith("/admin/inbox"));
@@ -180,6 +189,7 @@ function AdminLayout() {
     if (location.pathname.startsWith("/admin/products")) setProductNavOpen(true);
     if (location.pathname.startsWith("/admin/categories")) setCategoryNavOpen(true);
     if (location.pathname.startsWith("/admin/attributes")) setAttributesNavOpen(true);
+    if (location.pathname.startsWith("/admin/brands")) setBrandsNavOpen(true);
     if (location.pathname.startsWith("/admin/orders")) setOrderNavOpen(true);
     if (location.pathname.startsWith("/admin/users")) setUsersNavOpen(true);
     if (location.pathname.startsWith("/admin/inbox")) setInboxNavOpen(true);
@@ -253,6 +263,7 @@ function AdminLayout() {
                 const isProductMenu = item.key === "product-menu";
                 const isCategoryMenu = item.key === "category-menu";
                 const isAttributesMenu = item.key === "attributes-menu";
+                const isBrandsMenu = item.key === "brands-menu";
                 const isOrderMenu = item.key === "order-menu";
                 const isUsersMenu = item.key === "users-menu";
                 const isInboxMenu = item.key === "inbox-menu";
@@ -261,6 +272,7 @@ function AdminLayout() {
                   (isProductMenu && location.pathname.startsWith("/admin/products")) ||
                   (isCategoryMenu && location.pathname.startsWith("/admin/categories")) ||
                   (isAttributesMenu && location.pathname.startsWith("/admin/attributes")) ||
+                  (isBrandsMenu && location.pathname.startsWith("/admin/brands")) ||
                   (isOrderMenu && location.pathname.startsWith("/admin/orders")) ||
                   (isUsersMenu && location.pathname.startsWith("/admin/users")) ||
                   (isInboxMenu && location.pathname.startsWith("/admin/inbox"));
@@ -270,7 +282,9 @@ function AdminLayout() {
                     ? categoryNavOpen
                     : isAttributesMenu
                       ? attributesNavOpen
-                      : isUsersMenu
+                      : isBrandsMenu
+                        ? brandsNavOpen
+                        : isUsersMenu
                         ? usersNavOpen
                         : isInboxMenu
                           ? inboxNavOpen
@@ -289,6 +303,7 @@ function AdminLayout() {
                         if (isProductMenu) setProductNavOpen((v) => !v);
                         if (isCategoryMenu) setCategoryNavOpen((v) => !v);
                         if (isAttributesMenu) setAttributesNavOpen((v) => !v);
+                        if (isBrandsMenu) setBrandsNavOpen((v) => !v);
                         if (isOrderMenu) setOrderNavOpen((v) => !v);
                         if (isUsersMenu) setUsersNavOpen((v) => !v);
                         if (isInboxMenu) setInboxNavOpen((v) => !v);
@@ -343,9 +358,11 @@ function AdminLayout() {
                                   ? path === "/admin/products/new"
                                   : isCategoryMenu
                                     ? path === "/admin/categories/new"
-                                    : isUsersMenu
-                                      ? path === "/admin/users/new"
-                                      : path === "/admin/attributes/new"
+                                    : isBrandsMenu
+                                      ? path === "/admin/brands/new"
+                                      : isUsersMenu
+                                        ? path === "/admin/users/new"
+                                        : path === "/admin/attributes/new"
                                 : child.match === "details"
                                   ? /\/admin\/products\/[^/]+\/details$/.test(path)
                                   : child.match === "order-detail"

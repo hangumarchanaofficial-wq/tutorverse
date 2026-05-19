@@ -1,52 +1,47 @@
-import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, Pencil, Search, Trash2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { Link } from "react-router-dom";
-import { ConfirmDialog, useToast } from "../../admin/components/ui";
+import { PageHeader, Input, Select, Btn, ConfirmDialog, useToast } from "../../admin/components/ui";
+import { MOCK_ATTRIBUTES, SHOP_CATEGORY_LABEL } from "../../admin/data/mockAttributes";
 
-/** Rows aligned with Dataflow-style “All Attributes” mock */
-const MOCK_ATTRIBUTES = [
-  { id: "ATTR-1", category: "Color", value: "Blue, green, white", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-2", category: "Size", value: "S, M, L, XL, XXL", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-3", category: "Material", value: "Cotton, Polyster", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-4", category: "Style", value: "Classic, modern, ethnic, western", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-5", category: "Meat Type", value: "Fresh, Frozen, Marinated", shopCategory: "grocery", status: "active" },
-  { id: "ATTR-6", category: "Weight", value: "1kg, 2kg, 3kg, over 5kg", shopCategory: "grocery", status: "active" },
-  { id: "ATTR-7", category: "Brand", value: "Local, Imported", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-8", category: "Occasion", value: "Casual, Formal, Festive", shopCategory: "fashion", status: "inactive" },
-  { id: "ATTR-9", category: "Pack size", value: "Single, Bundle, Family", shopCategory: "grocery", status: "active" },
-  { id: "ATTR-10", category: "Storage", value: "Chilled, Frozen, Ambient", shopCategory: "grocery", status: "active" },
-  { id: "ATTR-11", category: "Pattern", value: "Solid, Striped, Printed", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-12", category: "Fit", value: "Slim, Regular, Relaxed", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-13", category: "Sleeve", value: "Sleeveless, Short, Long", shopCategory: "fashion", status: "active" },
-  { id: "ATTR-14", category: "Origin", value: "LK, IN, CN", shopCategory: "home", status: "active" },
-  { id: "ATTR-15", category: "Warranty", value: "6 months, 1 year, 2 years", shopCategory: "electronics", status: "active" },
-  { id: "ATTR-16", category: "Voltage", value: "110V, 220V", shopCategory: "electronics", status: "inactive" },
-  { id: "ATTR-17", category: "Fragrance", value: "Mild, Strong, Unscented", shopCategory: "beauty", status: "active" },
-  { id: "ATTR-18", category: "SPF", value: "15, 30, 50", shopCategory: "beauty", status: "active" },
-  { id: "ATTR-19", category: "Roast", value: "Light, Medium, Dark", shopCategory: "grocery", status: "active" },
-  { id: "ATTR-20", category: "Grind", value: "Whole bean, Fine, Coarse", shopCategory: "grocery", status: "active" },
-  { id: "ATTR-21", category: "Capacity", value: "500ml, 1L, 2L", shopCategory: "home", status: "active" },
-  { id: "ATTR-22", category: "Finish", value: "Matte, Gloss, Natural", shopCategory: "home", status: "active" },
+const SHOW_OPTIONS = [10, 25, 50].map((n) => ({ value: String(n), label: String(n) }));
+
+const SHOP_CATEGORY_OPTIONS = Object.entries(SHOP_CATEGORY_LABEL).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All Status" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
 ];
 
-const SHOP_CATEGORY_LABEL = {
-  all: "All Categories",
-  fashion: "Fashion",
-  grocery: "Grocery",
-  home: "Home & Living",
-  electronics: "Electronics",
-  beauty: "Beauty",
-};
+const SORT_OPTIONS = [
+  { value: "default", label: "Sort by (Default)" },
+  { value: "category-asc", label: "Category (A–Z)" },
+  { value: "category-desc", label: "Category (Z–A)" },
+];
 
 export default function AttributesList() {
   const toast = useToast();
   const [items, setItems] = useState(MOCK_ATTRIBUTES);
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("default");
-  const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const filteredAll = useMemo(() => {
@@ -54,9 +49,7 @@ export default function AttributesList() {
     const q = search.toLowerCase().trim();
     if (q) {
       out = out.filter(
-        (a) =>
-          a.category.toLowerCase().includes(q) ||
-          a.value.toLowerCase().includes(q)
+        (a) => a.category.toLowerCase().includes(q) || a.value.toLowerCase().includes(q)
       );
     }
     if (categoryFilter !== "all") {
@@ -70,14 +63,16 @@ export default function AttributesList() {
     return out;
   }, [items, search, categoryFilter, statusFilter, sortBy]);
 
-  const total = filteredAll.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = Math.min(page, totalPages);
+  const totalPages = Math.max(1, Math.ceil(filteredAll.length / pageSize));
+  const paged = filteredAll.slice((page - 1) * pageSize, page * pageSize);
 
-  const filtered = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredAll.slice(start, start + pageSize);
-  }, [filteredAll, currentPage, pageSize]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, statusFilter, sortBy, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
@@ -86,141 +81,96 @@ export default function AttributesList() {
     setDeleteTarget(null);
   };
 
-  const from = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const to = Math.min(currentPage * pageSize, total);
-
-  const pageButtons = useMemo(() => {
-    const cur = currentPage;
-    const windowSize = 3;
-    let start = Math.max(1, cur - 1);
-    let end = Math.min(totalPages, start + windowSize - 1);
-    start = Math.max(1, end - windowSize + 1);
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }, [currentPage, totalPages]);
-
   return (
-    <div className="space-y-5 admin-products-page">
+    <div className="admin-products-page space-y-6">
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete attribute"
         message={`Remove "${deleteTarget?.category}"? Linked product values may need a cleanup pass.`}
         confirmLabel="Delete"
+        confirmVariant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <h1 className="text-[34px] font-semibold tracking-[-0.02em] text-[#f8fafc]">All Attributes</h1>
-        <p className="text-xs text-[#98a2b3] sm:text-right">
-          Dashboard &gt; Attributes &gt; All Attributes
-        </p>
-      </div>
+      <PageHeader
+        title="All Attributes"
+        subtitle="Dashboard · Attributes"
+        actions={
+          <Link to="/admin/attributes/new">
+            <Btn variant="primary" size="md" className="gap-1.5">
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              Add new
+            </Btn>
+          </Link>
+        }
+      />
 
-      <div className="admin-panel overflow-hidden rounded-2xl border border-[#1f232b] bg-[#06070a]">
-        <div className="admin-filterbar flex flex-wrap items-center gap-3 border-b border-[#1f232b] bg-[#0b0d12] px-4 py-3.5">
-          <div className="flex items-center gap-2 text-xs text-[#98a2b3]">
-            <span>Showing</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              className="h-8 rounded-md border border-[#2a303c] bg-[#12141a] px-2 text-xs text-[#e5e7eb] outline-none"
-            >
-              {[10, 25, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <span>entries</span>
+      <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
+        <div className="admin-filterbar flex flex-wrap items-end gap-3 border-b border-[#263145] px-4 py-4">
+          <div className="w-28">
+            <Select
+              label="Show"
+              value={String(pageSize)}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              options={SHOW_OPTIONS}
+            />
           </div>
+          <span className="hidden pb-2 text-xs text-[#8b95a7] sm:inline">entries</span>
 
-          <div className="relative min-w-[200px] flex-1 basis-[200px]">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#98a2b3]" />
-            <input
+          <div className="relative min-w-[200px] flex-1 max-w-md self-end">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
+            <Input
+              className="pl-9"
+              placeholder="Search here…"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search here..."
-              className="h-9 w-full rounded-md border border-[#2a303c] bg-[#12141a] pl-9 pr-3 text-sm text-[#e5e7eb] placeholder:text-[#7f8795] outline-none focus:border-[#fe7a2f]"
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            className="h-9 rounded-md border border-[#2a303c] bg-[#12141a] px-3 text-xs text-[#e5e7eb] outline-none"
-          >
-            {Object.entries(SHOP_CATEGORY_LABEL).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <div className="w-44">
+            <Select
+              label="Category"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              options={SHOP_CATEGORY_OPTIONS}
+            />
+          </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="h-9 rounded-md border border-[#2a303c] bg-[#12141a] px-3 text-xs text-[#e5e7eb] outline-none"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <div className="w-36">
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              options={STATUS_OPTIONS}
+            />
+          </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value);
-              setPage(1);
-            }}
-            className="h-9 rounded-md border border-[#2a303c] bg-[#12141a] px-3 text-xs text-[#e5e7eb] outline-none"
-          >
-            <option value="default">Sort by (Default)</option>
-            <option value="category-asc">Category (A–Z)</option>
-            <option value="category-desc">Category (Z–A)</option>
-          </select>
-
-          <Link
-            to="/admin/attributes/new"
-            className="inline-flex h-9 items-center rounded-md bg-[#fe7a2f] px-4 text-xs font-semibold text-white hover:bg-[#f97316]"
-          >
-            + Add new
-          </Link>
+          <div className="w-44">
+            <Select label="Sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)} options={SORT_OPTIONS} />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="admin-table min-w-full text-left text-sm">
-            <thead className="bg-[#090b10] text-[11px] font-semibold text-[#98a2b3]">
+            <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 font-medium">Value</th>
                 <th className="px-4 py-3 text-right font-medium">Action</th>
               </tr>
             </thead>
-            <tbody>
-              {filtered.length === 0 ? (
+            <tbody className="divide-y divide-[#263145]/60">
+              {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-16 text-center text-[#98a2b3]">
-                    No attributes match your filters.
+                  <td colSpan={3} className="px-4 py-14 text-center">
+                    <p className="text-sm font-medium text-[#f8fafc]">No attributes match your filters</p>
+                    <p className="mt-1 text-xs text-[#8b95a7]">Try another category or clear the search.</p>
                   </td>
                 </tr>
               ) : (
-                filtered.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-[#1f232b] transition-colors odd:bg-[#06070a] even:bg-[#111319] hover:bg-[#141822]"
-                  >
+                paged.map((row) => (
+                  <tr key={row.id} className="transition">
                     <td className="px-4 py-3 font-medium text-[#f8fafc]">{row.category}</td>
                     <td className="max-w-xl px-4 py-3 text-[#c1c7d0]">{row.value}</td>
                     <td className="px-4 py-3">
@@ -228,25 +178,25 @@ export default function AttributesList() {
                         <button
                           type="button"
                           onClick={() => toast?.(`Preview: ${row.category}`)}
-                          className="text-[#f59e0b] hover:text-[#fbbf24]"
+                          className="rounded-lg p-1.5 text-[#d8b84f] transition hover:bg-[#182238]"
                           aria-label={`View ${row.category}`}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4" strokeWidth={2.2} />
                         </button>
                         <Link
                           to="/admin/attributes/new"
-                          className="text-[#22c55e] hover:text-[#4ade80]"
+                          className="rounded-lg p-1.5 text-[#34d399] transition hover:bg-[#182238]"
                           aria-label={`Edit ${row.category}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" strokeWidth={2.2} />
                         </Link>
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(row)}
-                          className="text-[#ef4444] hover:text-[#f87171]"
+                          className="rounded-lg p-1.5 text-[#f87171] transition hover:bg-[#182238]"
                           aria-label={`Delete ${row.category}`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" strokeWidth={2.2} />
                         </button>
                       </div>
                     </td>
@@ -257,47 +207,92 @@ export default function AttributesList() {
           </table>
         </div>
 
-        <div className="flex flex-col items-stretch justify-between gap-3 border-t border-[#1f232b] bg-[#0b0d12] px-4 py-3 text-xs text-[#98a2b3] sm:flex-row sm:items-center">
-          <span>
-            {total === 0
-              ? "Showing 0 entries"
-              : `Showing ${from}–${to} of ${total} entries`}
-          </span>
-          <div className="flex items-center justify-end gap-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((p) => Math.max(1, Math.min(p, totalPages) - 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#e5e7eb] hover:bg-[#1a1d26] disabled:opacity-30"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            {pageButtons.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setPage(n)}
-                className={`h-8 w-8 rounded-full text-xs font-semibold ${
-                  n === currentPage
-                    ? "bg-[#fe7a2f] text-white"
-                    : "text-[#98a2b3] hover:bg-[#1a1d26] hover:text-[#e5e7eb]"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, Math.min(p, totalPages) + 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#e5e7eb] hover:bg-[#1a1d26] disabled:opacity-30"
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+        {filteredAll.length > 10 && (
+          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs font-medium text-[#8b95a7]">
+              Show data{" "}
+              <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+              of {filteredAll.length}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {(() => {
+                const navItems =
+                  totalPages <= 5
+                    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+                    : page <= 3
+                      ? [1, 2, 3, "end-gap", totalPages]
+                      : page >= totalPages - 2
+                        ? [1, "start-gap", totalPages - 2, totalPages - 1, totalPages]
+                        : [1, "start-gap", page - 1, page, page + 1, "end-gap", totalPages];
+
+                const navButtonClass =
+                  "flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+                const ghostStyle =
+                  "border-[#263145] bg-[#0f1726] text-[#8b95a7] shadow-sm hover:border-[#d8b84f]/50 hover:bg-[#182238] hover:text-[#f8fafc]";
+                const activeStyle =
+                  "border-[#d8b84f] bg-[#d8b84f] text-[#070b14] shadow-[0_8px_18px_rgba(216,184,79,0.24)]";
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="First page"
+                      disabled={page <= 1}
+                      onClick={() => setPage(1)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Previous page"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    {navItems.map((item) =>
+                      typeof item === "number" ? (
+                        <button
+                          key={item}
+                          type="button"
+                          aria-label={`Page ${item}`}
+                          onClick={() => setPage(item)}
+                          className={`${navButtonClass} ${item === page ? activeStyle : ghostStyle}`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={item} className="px-1 text-sm font-semibold text-[#8b95a7]">
+                          …
+                        </span>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Next page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Last page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage(totalPages)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

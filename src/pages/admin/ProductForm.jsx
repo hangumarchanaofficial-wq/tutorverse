@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Btn, useToast } from "../../admin/components/ui";
+import { Star, UploadCloud, X } from "lucide-react";
+import { PageHeader, Input, Select, Btn, Skeleton, useToast } from "../../admin/components/ui";
 import { products as mockProducts, categories as mockCategories } from "../../admin/data/mockData";
-import { createAdminProduct, patchAdminProduct } from "../../services/adminApi";
+import { createAdminProduct, fetchAdminProducts, patchAdminProduct } from "../../services/adminApi";
+
+const MIN_IMAGES_RECOMMENDED = 4;
 
 const slugify = (s) =>
   s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -14,79 +17,148 @@ const isoDateOnly = (iso) => {
 };
 
 const emptyForm = {
-  name: "", slug: "", sku: "", brand: "", categoryId: "", categoryIds: [],
-  description: "", shortDescription: "",
-  price: "", salePrice: "", costPrice: "",
-  stock: "0", lowStockThreshold: "5",
-  mainImage: "", galleryImages: "",
+  name: "",
+  slug: "",
+  sku: "",
+  brand: "",
+  categoryId: "",
+  categoryIds: [],
+  description: "",
+  shortDescription: "",
+  price: "",
+  salePrice: "",
+  costPrice: "",
+  stock: "0",
+  lowStockThreshold: "5",
+  mainImage: "",
+  galleryImages: "",
   schedule: "",
   size: "M",
   color: "Orange",
   tags: "",
-  seoTitle: "", metaDescription: "", keywords: "",
-  isActive: true, isFeatured: false, isBestSeller: false, isNewArrival: false,
+  seoTitle: "",
+  metaDescription: "",
+  keywords: "",
+  isActive: true,
+  isFeatured: false,
+  isBestSeller: false,
+  isNewArrival: false,
 };
 
-function fromProduct(p) {
-  const ids = p.categoryId ? [p.categoryId] : [];
-  return {
-    name: p.name || "", slug: p.slug || "", sku: p.sku || "",
-    brand: p.brand || "", categoryId: p.categoryId || "", categoryIds: ids,
-    description: p.description || "", shortDescription: p.shortDescription || "",
-    price: p.price != null ? String(p.price) : "",
-    salePrice: p.salePrice != null ? String(p.salePrice) : "",
-    costPrice: p.costPrice != null ? String(p.costPrice) : "",
-    stock: String(p.stock ?? 0), lowStockThreshold: String(p.lowStockThreshold ?? 5),
-    mainImage: p.images?.[0] || "",
-    galleryImages: (p.images || []).slice(1).join("\n"),
-    schedule: isoDateOnly(p.updatedAt || p.createdAt),
-    size: "M",
-    color: "Orange",
-    tags: p.keywords || "",
-    seoTitle: p.seoTitle || "", metaDescription: p.metaDescription || "", keywords: p.keywords || "",
-    isActive: !!p.isActive, isFeatured: !!p.isFeatured,
-    isBestSeller: !!p.isBestSeller, isNewArrival: !!p.isNewArrival,
-  };
-}
+const textareaCls =
+  "w-full rounded-lg border border-[#263145] bg-[#182238] px-3 py-2 text-sm text-[#f8fafc] placeholder-[#8b95a7]/50 transition focus:border-[#d8b84f]/60 focus:outline-none focus:ring-1 focus:ring-[#d8b84f]/30";
+const tinyHintCls = "mt-1 text-[11px] text-[#8b95a7]";
+const panelCls = "admin-product-form__panel rounded-xl border border-[#263145] bg-[#121b2e] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.08)]";
 
-const inputCls =
-  "h-11 w-full rounded-lg border border-[#252a33] bg-[#161a20] px-3 text-sm text-[#f8fafc] placeholder-[#7f8795] outline-none focus:border-[#fe7a2f]";
-const tinyHintCls = "mt-1 text-[10px] text-[#8b95a7]";
 const colorOptions = [
-  { name: "Orange", value: "#ff7a2f" },
-  { name: "Blue", value: "#2286f7" },
-  { name: "Yellow", value: "#f6c847" },
+  { name: "Orange", value: "#d8b84f" },
+  { name: "Blue", value: "#60a5fa" },
+  { name: "Yellow", value: "#f59e0b" },
   { name: "White", value: "#f3f4f6" },
 ];
 const sizeOptions = ["S", "M", "L", "XL"];
 
-const FALLBACK_PREVIEW_IMGS = [
-  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&auto=format",
-  "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop&auto=format",
-  "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop&auto=format",
-];
+function normalizeApiProduct(p) {
+  if (!p) return null;
+  return {
+    ...p,
+    name: p.name || p.title || "Untitled Product",
+    stock: p.stock ?? p.stock_qty ?? 0,
+    lowStockThreshold: p.lowStockThreshold ?? p.low_stock_threshold ?? 10,
+    images: Array.isArray(p.images) ? p.images : p.image ? [p.image] : [],
+  };
+}
 
-function PreviewImg({ src, alt, idx = 0, className }) {
-  const [url, setUrl] = useState(src || FALLBACK_PREVIEW_IMGS[idx % FALLBACK_PREVIEW_IMGS.length]);
-  useEffect(() => {
-    setUrl(src || FALLBACK_PREVIEW_IMGS[idx % FALLBACK_PREVIEW_IMGS.length]);
-  }, [src, idx]);
+function fromProduct(p) {
+  const normalized = normalizeApiProduct(p) || p;
+  const ids = normalized.categoryId ? [normalized.categoryId] : [];
+  return {
+    name: normalized.name || "",
+    slug: normalized.slug || "",
+    sku: normalized.sku || "",
+    brand: normalized.brand || "",
+    categoryId: normalized.categoryId || "",
+    categoryIds: ids,
+    description: normalized.description || "",
+    shortDescription: normalized.shortDescription || "",
+    price: normalized.price != null ? String(normalized.price) : "",
+    salePrice: normalized.salePrice != null ? String(normalized.salePrice) : "",
+    costPrice: normalized.costPrice != null ? String(normalized.costPrice) : "",
+    stock: String(normalized.stock ?? 0),
+    lowStockThreshold: String(normalized.lowStockThreshold ?? 5),
+    mainImage: normalized.images?.[0] || "",
+    galleryImages: (normalized.images || []).slice(1).join("\n"),
+    schedule: isoDateOnly(normalized.updatedAt || normalized.createdAt),
+    size: "M",
+    color: "Orange",
+    tags: normalized.keywords || "",
+    seoTitle: normalized.seoTitle || "",
+    metaDescription: normalized.metaDescription || "",
+    keywords: normalized.keywords || "",
+    isActive: normalized.isActive !== false,
+    isFeatured: !!normalized.isFeatured,
+    isBestSeller: !!normalized.isBestSeller,
+    isNewArrival: !!normalized.isNewArrival,
+  };
+}
+
+function LkrField({ label, required, value, onChange, placeholder }) {
   return (
-    <img
-      src={url}
-      alt={alt}
-      className={className}
-      onError={() => setUrl(FALLBACK_PREVIEW_IMGS[idx % FALLBACK_PREVIEW_IMGS.length])}
-    />
+    <div>
+      <label className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+        {label}
+        {required && <span className="text-[#d8b84f]">*</span>}
+      </label>
+      <div className="flex h-10 items-stretch overflow-hidden rounded-lg border border-[#263145] bg-[#182238] focus-within:border-[#d8b84f]/60 focus-within:ring-1 focus-within:ring-[#d8b84f]/30">
+        <span className="flex items-center border-r border-[#263145] px-3 text-xs font-semibold text-[#8b95a7]">
+          LKR
+        </span>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-[#f8fafc] outline-none"
+        />
+      </div>
+    </div>
   );
 }
 
-function FieldLabel({ children, required }) {
+function ThumbnailTile({ src, isMain, onSetMain, onRemove, label }) {
   return (
-    <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-[#f8fafc]">
-      {children}
-      {required && <span className="text-[#fe7a2f]">*</span>}
-    </label>
+    <div className="relative">
+      <img src={src} alt="" className="h-24 w-24 rounded-lg border border-[#263145] object-cover" />
+      {isMain && (
+        <span className="absolute left-1 top-1 rounded bg-[#d8b84f] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#070b14]">
+          Main
+        </span>
+      )}
+      <div className="absolute right-1 top-1 flex gap-0.5">
+        {onSetMain && !isMain && (
+          <button
+            type="button"
+            title="Set as main image"
+            onClick={onSetMain}
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-[#263145] bg-[#0f1726]/90 text-[#d8b84f] hover:bg-[#182238]"
+          >
+            <Star className="h-3 w-3" strokeWidth={2.2} />
+          </button>
+        )}
+        {onRemove && (
+          <button
+            type="button"
+            title={`Remove ${label || "image"}`}
+            onClick={onRemove}
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-[#263145] bg-[#0f1726]/90 text-[#f87171] hover:bg-[#182238]"
+          >
+            <X className="h-3 w-3" strokeWidth={2.2} />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -99,27 +171,53 @@ export default function ProductForm() {
 
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(isEdit);
   const [galleryFiles, setGalleryFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [fallbackStock, setFallbackStock] = useState(0);
 
   useEffect(() => {
     if (!isEdit) return;
-    const product = mockProducts.find((p) => p.id === id);
-    if (product) {
-      setForm(fromProduct(product));
-      setFallbackStock(Number(product.stock) || 0);
-    }
+    let on = true;
+    setLoading(true);
+    fetchAdminProducts({ limit: 500 })
+      .then((res) => {
+        if (!on) return;
+        const items = res?.items || [];
+        const product =
+          items.map(normalizeApiProduct).find((p) => String(p.id) === String(id)) ||
+          mockProducts.find((p) => String(p.id) === String(id));
+        if (product) {
+          setForm(fromProduct(product));
+          setFallbackStock(Number(product.stock) || 0);
+        }
+      })
+      .catch(() => {
+        if (!on) return;
+        const product = mockProducts.find((p) => String(p.id) === String(id));
+        if (product) {
+          setForm(fromProduct(product));
+          setFallbackStock(Number(product.stock) || 0);
+        }
+      })
+      .finally(() => {
+        if (on) setLoading(false);
+      });
     try {
       window.localStorage.setItem("admin-last-product-edit", id);
     } catch {
       /* ignore */
     }
+    return () => {
+      on = false;
+    };
   }, [id, isEdit]);
 
   useEffect(
     () => () => {
-      galleryFiles.forEach((item) => URL.revokeObjectURL(item.url));
+      galleryFiles.forEach((item) => {
+        if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+      });
     },
     [galleryFiles]
   );
@@ -145,6 +243,16 @@ export default function ProductForm() {
     []
   );
 
+  const galleryList = useMemo(
+    () => form.galleryImages.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
+    [form.galleryImages]
+  );
+
+  const imageCount = useMemo(() => {
+    const hasMain = !!form.mainImage;
+    return (hasMain ? 1 : 0) + galleryFiles.length + galleryList.length;
+  }, [form.mainImage, galleryFiles.length, galleryList.length]);
+
   const addCategoryChip = (e) => {
     const cid = e.target.value;
     if (!cid) return;
@@ -159,24 +267,59 @@ export default function ProductForm() {
   const removeCategoryChip = (cid) => {
     setForm((prev) => {
       const nextIds = prev.categoryIds.filter((x) => x !== cid);
-      return {
-        ...prev,
-        categoryIds: nextIds,
-        categoryId: nextIds[0] || "",
-      };
+      return { ...prev, categoryIds: nextIds, categoryId: nextIds[0] || "" };
     });
   };
-
-  const galleryList = form.galleryImages.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 
   const appendFiles = useCallback((files) => {
     const arr = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
     if (!arr.length) return;
-    setGalleryFiles((prev) => {
-      const next = [...prev, ...arr.map((f) => ({ file: f, url: URL.createObjectURL(f) }))];
-      return next;
+    const newItems = arr.map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+    setGalleryFiles((prev) => [...prev, ...newItems]);
+    setForm((prev) => {
+      if (prev.mainImage) return prev;
+      return { ...prev, mainImage: newItems[0].url };
     });
   }, []);
+
+  const removeLocalFile = (index) => {
+    setGalleryFiles((prev) => {
+      const item = prev[index];
+      if (item?.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+      const next = prev.filter((_, i) => i !== index);
+      setForm((f) => {
+        if (f.mainImage !== item?.url) return f;
+        const fallback = next[0]?.url || galleryList[0] || "";
+        return { ...f, mainImage: fallback };
+      });
+      return next;
+    });
+  };
+
+  const removeRemoteUrl = (url) => {
+    setForm((prev) => {
+      const lines = prev.galleryImages
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter((s) => s && s !== url);
+      const nextMain = prev.mainImage === url ? lines[0] || galleryFiles[0]?.url || "" : prev.mainImage;
+      return {
+        ...prev,
+        mainImage: nextMain,
+        galleryImages: lines.slice(prev.mainImage === url ? 1 : 0).join("\n"),
+      };
+    });
+  };
+
+  const setAsMain = (url) => {
+    setForm((prev) => {
+      const others = [
+        ...galleryList.filter((u) => u !== url),
+        ...(prev.mainImage && prev.mainImage !== url ? [prev.mainImage] : []),
+      ];
+      return { ...prev, mainImage: url, galleryImages: others.join("\n") };
+    });
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -184,11 +327,24 @@ export default function ProductForm() {
       toast?.("Add at least one category", "error");
       return;
     }
+    if (imageCount < 1) {
+      toast?.("Add at least one product image", "error");
+      return;
+    }
+    if (imageCount < MIN_IMAGES_RECOMMENDED) {
+      toast?.(`Tip: add ${MIN_IMAGES_RECOMMENDED} or more images for best listing quality`, "warning");
+    }
+
     setSaving(true);
     const parsedStock = parseInt(String(form.stock).trim(), 10);
     const stockVal = Number.isFinite(parsedStock) ? parsedStock : fallbackStock;
-
     const primaryCategory = form.categoryIds[0] || form.categoryId;
+
+    const imageUrls = [
+      form.mainImage.trim(),
+      ...galleryList.filter((u) => u !== form.mainImage.trim()),
+    ].filter((u) => u && !u.startsWith("blob:"));
+
     const payload = {
       name: form.name.trim(),
       slug: form.slug.trim() || slugify(form.name),
@@ -202,7 +358,7 @@ export default function ProductForm() {
       costPrice: form.costPrice ? Number(form.costPrice) : null,
       stock: stockVal,
       lowStockThreshold: Number(form.lowStockThreshold) || 5,
-      images: [form.mainImage.trim(), ...galleryList].filter(Boolean),
+      images: imageUrls.length ? imageUrls : [form.mainImage].filter(Boolean),
       seoTitle: form.seoTitle.trim(),
       metaDescription: form.metaDescription.trim(),
       keywords: [form.keywords, form.tags].filter(Boolean).join(", ").trim(),
@@ -211,6 +367,7 @@ export default function ProductForm() {
       isBestSeller: form.isBestSeller,
       isNewArrival: form.isNewArrival,
     };
+
     try {
       if (isEdit) {
         await patchAdminProduct(id, payload);
@@ -232,20 +389,52 @@ export default function ProductForm() {
     e.target.value = "";
   };
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-end justify-between">
-        <h1 className="text-[34px] font-semibold tracking-[-0.02em] text-[#f8fafc]">
-          {isEdit ? "Edit Product" : "Add Product"}
-        </h1>
-        <p className="text-xs text-[#98a2b3]">
-          Dashboard &gt; Product &gt; {isEdit ? "Edit Product" : "Add Product"}
-        </p>
+  if (loading) {
+    return (
+      <div className="admin-products-page admin-product-form space-y-6">
+        <Skeleton className="h-10 w-64 rounded-lg" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr]">
+          <Skeleton className="h-80 rounded-xl" />
+          <Skeleton className="h-[520px] rounded-xl" />
+        </div>
       </div>
+    );
+  }
 
-      <form onSubmit={handleSave} className="space-y-4">
-        <div className="rounded-2xl border border-[#1f232b] bg-[#06070a] p-4">
-          <p className="mb-2 text-sm font-semibold text-[#f8fafc]">Upload Images</p>
+  return (
+    <div className="admin-products-page admin-product-form space-y-6">
+      <PageHeader
+        title={isEdit ? "Edit Product" : "Add Product"}
+        subtitle="Create a listing with images, pricing, and inventory"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/admin/products">
+              <Btn variant="secondary" size="md">
+                Cancel
+              </Btn>
+            </Link>
+            <Btn variant="primary" size="md" disabled={saving} onClick={() => document.getElementById("product-form-submit")?.click()}>
+              {saving ? "Saving…" : isEdit ? "Save & publish" : "Add product"}
+            </Btn>
+          </div>
+        }
+      />
+
+      <form onSubmit={handleSave} className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr]">
+        <div className={`${panelCls} lg:sticky lg:top-4 lg:self-start`}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-[#f8fafc]">Upload images</p>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                imageCount >= MIN_IMAGES_RECOMMENDED
+                  ? "bg-[#34d399]/15 text-[#34d399]"
+                  : "bg-[#f59e0b]/15 text-[#f59e0b]"
+              }`}
+            >
+              {imageCount} / {MIN_IMAGES_RECOMMENDED} min
+            </span>
+          </div>
+
           <div
             role="button"
             tabIndex={0}
@@ -269,17 +458,17 @@ export default function ProductForm() {
               setDragOver(false);
               appendFiles(e.dataTransfer.files);
             }}
-            className={`flex h-44 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-[#111318] text-center transition-colors ${
-              dragOver ? "border-[#fe7a2f] bg-[#fe7a2f]/5" : "border-[#fe7a2f]/50"
+            className={`admin-product-form__dropzone flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed text-center transition-colors ${
+              dragOver
+                ? "border-[#d8b84f] bg-[#d8b84f]/10"
+                : "border-[#d8b84f]/40 bg-[#0f1726]/50 hover:border-[#d8b84f]/60"
             }`}
             onClick={() => fileInputRef.current?.click()}
           >
-            <svg viewBox="0 0 24 24" className="mb-2 h-8 w-8 text-[#fe7a2f]" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M20 16.5A3.5 3.5 0 0 0 17 10h-1a6 6 0 1 0-11 3.2" />
-              <path d="M12 12v8m0-8 3 3m-3-3-3 3" />
-            </svg>
-            <p className="text-sm text-[#aab2c1]">
-              Drop your images here or <span className="text-[#fe7a2f]">select click to browse</span>
+            <UploadCloud className="mb-2 h-9 w-9 text-[#d8b84f]" strokeWidth={1.8} />
+            <p className="px-4 text-sm text-[#8b95a7]">
+              Drop images here, or{" "}
+              <span className="font-semibold text-[#d8b84f]">click to browse</span>
             </p>
             <input
               ref={fileInputRef}
@@ -290,191 +479,204 @@ export default function ProductForm() {
               onChange={onPickImages}
             />
           </div>
+
           {(galleryFiles.length > 0 || form.mainImage || galleryList.length > 0) && (
-            <div className="mt-4 flex flex-wrap gap-3">
-              {galleryFiles.map((item, i) => (
-                <img key={`local-${i}`} src={item.url} alt="" className="h-28 w-28 rounded-xl border border-[#242933] object-cover" />
-              ))}
-              {form.mainImage && (
-                <PreviewImg src={form.mainImage} alt="" idx={0} className="h-28 w-28 rounded-xl border border-[#242933] object-cover" />
+            <div className="mt-4 flex flex-wrap gap-2">
+              {form.mainImage && !galleryFiles.some((g) => g.url === form.mainImage) && (
+                <ThumbnailTile
+                  src={form.mainImage}
+                  isMain
+                  onRemove={() => setForm((prev) => ({ ...prev, mainImage: galleryList[0] || "" }))}
+                  label="main"
+                />
               )}
-              {galleryList.slice(0, 6).map((url, i) => (
-                <PreviewImg key={`remote-${i}`} src={url} alt="" idx={i + 1} className="h-28 w-28 rounded-xl border border-[#242933] object-cover" />
+              {galleryFiles.map((item, i) => (
+                <ThumbnailTile
+                  key={`local-${i}`}
+                  src={item.url}
+                  isMain={form.mainImage === item.url}
+                  onSetMain={() => setAsMain(item.url)}
+                  onRemove={() => removeLocalFile(i)}
+                  label="upload"
+                />
+              ))}
+              {galleryList.map((url, i) => (
+                <ThumbnailTile
+                  key={`remote-${url}`}
+                  src={url}
+                  isMain={form.mainImage === url}
+                  onSetMain={() => setAsMain(url)}
+                  onRemove={() => removeRemoteUrl(url)}
+                  label="gallery"
+                />
               ))}
             </div>
           )}
-          <p className={tinyHintCls}>
-            You need to add at least 4 images. Pay attention to the quality of the pictures you add, comply with the background color
-            standards. Pictures must be in certain dimensions. Notice that the product shows all the details.
-          </p>
+
+          <ul className={`mt-4 list-inside list-disc space-y-1 text-[11px] text-[#8b95a7] ${tinyHintCls}`}>
+            <li>Use clear photos on a neutral background</li>
+            <li>Square or 1:1 crops work best (min. 800×800px)</li>
+            <li>Show the full product and important details</li>
+            <li>Star an image to set it as the main listing photo</li>
+          </ul>
         </div>
 
-        <div className="rounded-2xl border border-[#1f232b] bg-[#06070a] p-4">
-          <div className="space-y-4">
-            <div>
-              <FieldLabel required>Product title</FieldLabel>
-              <input required value={form.name} onChange={set("name")} className={inputCls} placeholder="Enter title" />
-              <p className={tinyHintCls}>Do not exceed 20 characters when entering the product name.</p>
-            </div>
+        <div className="space-y-5">
+          <div className={panelCls}>
+            <p className="mb-4 text-sm font-semibold text-[#f8fafc]">Product information</p>
+            <div className="space-y-4">
+              <div>
+                <Input label="Product title" required value={form.name} onChange={set("name")} placeholder="Enter title" />
+                <p className={tinyHintCls}>Keep the title clear and under 120 characters.</p>
+              </div>
 
-            <div>
-              <FieldLabel required>Category</FieldLabel>
-              <div className="min-h-[2.75rem] rounded-lg border border-[#252a33] bg-[#161a20] px-2 py-1.5">
-                <div className="flex flex-wrap gap-1.5">
-                  {form.categoryIds.map((cid) => {
-                    const c = categoryById[cid];
-                    if (!c) return null;
-                    return (
-                      <span
-                        key={cid}
-                        className="inline-flex items-center gap-1 rounded-md border border-[#fe7a2f]/60 bg-[#fe7a2f]/10 px-2 py-0.5 text-xs font-medium text-[#fe7a2f]"
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+                  Category <span className="text-[#d8b84f]">*</span>
+                </label>
+                <div className="min-h-[2.75rem] rounded-lg border border-[#263145] bg-[#182238] px-2 py-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.categoryIds.map((cid) => {
+                      const c = categoryById[cid];
+                      if (!c) return null;
+                      return (
+                        <span
+                          key={cid}
+                          className="inline-flex items-center gap-1 rounded-md border border-[#d8b84f]/40 bg-[#d8b84f]/10 px-2 py-0.5 text-xs font-medium text-[#d8b84f]"
+                        >
+                          {c.name}
+                          <button
+                            type="button"
+                            className="text-[#d8b84f] hover:text-[#f8fafc]"
+                            onClick={() => removeCategoryChip(cid)}
+                            aria-label={`Remove ${c.name}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Select className="mt-2" value="" onChange={addCategoryChip} options={[{ value: "", label: "Add category…" }, ...mockCategories.map((c) => ({ value: c.id, label: c.name }))]} />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <LkrField label="Price" required value={form.price} onChange={set("price")} placeholder="0" />
+                <LkrField label="Sale price" value={form.salePrice} onChange={set("salePrice")} placeholder="Optional" />
+              </div>
+
+              {discountPct != null && (
+                <div className="rounded-lg border border-[#d8b84f]/25 bg-[#d8b84f]/10 px-3 py-2 text-sm text-[#f8fafc]">
+                  Auto discount: <span className="font-semibold text-[#d8b84f]">{discountPct}%</span>
+                </div>
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input label="Brand" value={form.brand} onChange={set("brand")} placeholder="Brand name" />
+                <Input label="SKU" value={form.sku} onChange={set("sku")} placeholder="TWO-ELC-001" />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input label="Stock" required value={form.stock} onChange={set("stock")} placeholder="e.g. 120" />
+                <Input
+                  label="Low stock alert"
+                  value={form.lowStockThreshold}
+                  onChange={set("lowStockThreshold")}
+                  placeholder="5"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+                    Color: {form.color}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {colorOptions.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, color: c.name }))}
+                        className={`h-7 w-7 rounded-full border-2 transition ${
+                          form.color === c.name ? "border-[#d8b84f] ring-2 ring-[#d8b84f]/30" : "border-[#263145]"
+                        }`}
+                        style={{ backgroundColor: c.value }}
+                        aria-label={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+                    Size: {form.size}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {sizeOptions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, size: s }))}
+                        className={`h-9 w-9 rounded-lg text-xs font-semibold transition ${
+                          form.size === s
+                            ? "bg-[#d8b84f] text-[#070b14]"
+                            : "border border-[#263145] bg-[#182238] text-[#8b95a7] hover:text-[#f8fafc]"
+                        }`}
                       >
-                        {c.name}
-                        <button type="button" className="text-[#fe7a2f] hover:text-white" onClick={() => removeCategoryChip(cid)} aria-label={`Remove ${c.name}`}>
-                          ×
-                        </button>
-                      </span>
-                    );
-                  })}
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <select className={`${inputCls} mt-2`} defaultValue="" onChange={addCategoryChip}>
-                <option value="">Add category…</option>
-                {mockCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
               <div>
-                <FieldLabel required>Price</FieldLabel>
-                <div className="flex h-11 items-stretch overflow-hidden rounded-lg border border-[#252a33] bg-[#161a20] focus-within:border-[#fe7a2f]">
-                  <span className="flex items-center border-r border-[#252a33] px-3 text-sm text-[#98a2b3]">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price}
-                    onChange={set("price")}
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-[#f8fafc] outline-none"
-                  />
-                </div>
+                <Input label="Tags" value={form.tags} onChange={set("tags")} placeholder="Comma-separated tags" />
               </div>
-              <div>
-                <FieldLabel>Sale Price</FieldLabel>
-                <div className="flex h-11 items-stretch overflow-hidden rounded-lg border border-[#252a33] bg-[#161a20] focus-within:border-[#fe7a2f]">
-                  <span className="flex items-center border-r border-[#252a33] px-3 text-sm text-[#98a2b3]">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.salePrice}
-                    onChange={set("salePrice")}
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-[#f8fafc] outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <FieldLabel>Schedule</FieldLabel>
-                <input type="date" value={form.schedule} onChange={set("schedule")} className={inputCls} />
-              </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
               <div>
-                <FieldLabel required>Brand</FieldLabel>
-                <input value={form.brand} onChange={set("brand")} className={inputCls} placeholder="Choose brand" />
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+                  Description <span className="text-[#d8b84f]">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={6}
+                  value={form.description}
+                  onChange={set("description")}
+                  className={textareaCls}
+                  placeholder="Describe the product for customers"
+                />
+                <p className={tinyHintCls}>Up to 1000 characters recommended.</p>
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#f8fafc]">Color: {form.color}</label>
-                <div className="flex items-center gap-2 pt-2">
-                  {colorOptions.map((c) => (
-                    <button
-                      key={c.name}
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, color: c.name }))}
-                      className={`h-6 w-6 rounded-full border-2 ${form.color === c.name ? "border-white" : "border-transparent"}`}
-                      style={{ backgroundColor: c.value }}
-                      aria-label={c.name}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#f8fafc]">Size: {form.size}</label>
-                <div className="flex items-center gap-2 pt-1">
-                  {sizeOptions.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, size: s }))}
-                      className={`h-9 w-9 rounded-lg text-xs font-semibold transition ${
-                        form.size === s ? "bg-[#fe7a2f] text-white" : "bg-[#2a3038] text-[#e5e7eb] hover:bg-[#363d47]"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+              <Input label="Main image URL (optional)" value={form.mainImage} onChange={set("mainImage")} placeholder="https://…" />
               <div>
-                <FieldLabel>SKU</FieldLabel>
-                <input value={form.sku} onChange={set("sku")} className={inputCls} placeholder="Enter SKU" />
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+                  Gallery URLs (one per line)
+                </label>
+                <textarea
+                  rows={3}
+                  value={form.galleryImages}
+                  onChange={set("galleryImages")}
+                  className={textareaCls}
+                  placeholder="https://…"
+                />
               </div>
-              <div>
-                <FieldLabel required>Stock</FieldLabel>
-                <input value={form.stock} onChange={set("stock")} className={inputCls} placeholder="e.g. 120 or Instock" />
-              </div>
-              <div>
-                <FieldLabel>Tags</FieldLabel>
-                <input value={form.tags} onChange={set("tags")} className={inputCls} placeholder="Enter a tag" />
-              </div>
-            </div>
 
-            <div>
-              <FieldLabel required>Description</FieldLabel>
-              <textarea
-                rows={6}
-                value={form.description}
-                onChange={set("description")}
-                className={`${inputCls} h-auto py-3`}
-                placeholder="Short description about product"
-              />
-              <p className={tinyHintCls}>Do not exceed 1000 characters when entering the product description.</p>
+              <Input label="Schedule" type="date" value={form.schedule} onChange={set("schedule")} />
             </div>
           </div>
-        </div>
 
-        {discountPct != null && (
-          <div className="rounded-xl border border-[#2a3038] bg-[#101319] px-4 py-2 text-sm text-[#f8fafc]">
-            Auto discount: <span className="font-semibold text-[#fe7a2f]">{discountPct}%</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <Btn variant="primary" type="submit" id="product-form-submit" size="md" disabled={saving}>
+              {saving ? "Saving…" : isEdit ? "Save & publish" : "Add product"}
+            </Btn>
+            <Link to="/admin/products">
+              <Btn variant="secondary" type="button" size="md">
+                Cancel
+              </Btn>
+            </Link>
           </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <Btn
-            variant="primary"
-            type="submit"
-            size="md"
-            disabled={saving}
-            className="!h-12 !min-w-[180px] !rounded-xl !bg-[#fe7a2f] !px-8 !text-sm !font-semibold hover:!bg-[#f97316]"
-          >
-            {saving ? "Saving…" : isEdit ? "Save & Publish" : "Add product"}
-          </Btn>
-          <Link to="/admin/products">
-            <button
-              type="button"
-              className="h-12 min-w-[180px] rounded-xl border border-[#fe7a2f]/60 bg-transparent px-8 text-sm font-semibold text-[#fe7a2f] transition hover:bg-[#fe7a2f]/10"
-            >
-              Cancel
-            </button>
-          </Link>
         </div>
       </form>
     </div>

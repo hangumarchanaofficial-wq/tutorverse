@@ -17,6 +17,8 @@ import CategoriesList from "../pages/admin/CategoriesList";
 import CategoryForm from "../pages/admin/CategoryForm";
 import AttributesList from "../pages/admin/AttributesList";
 import AttributeForm from "../pages/admin/AttributeForm";
+import BrandsList from "../pages/admin/BrandsList";
+import BrandForm from "../pages/admin/BrandForm";
 import StockOverview from "../pages/admin/StockOverview";
 import StockLogs from "../pages/admin/StockLogs";
 import RestockPlanner from "../pages/admin/RestockPlanner";
@@ -61,7 +63,8 @@ export default function AdminApp() {
           <Route path="categories/new" element={<CategoryForm />} />
           <Route path="attributes" element={<AttributesList />} />
           <Route path="attributes/new" element={<AttributeForm />} />
-          <Route path="brands" element={<PlaceholderPages page="brands" />} />
+          <Route path="brands" element={<BrandsList />} />
+          <Route path="brands/new" element={<BrandForm />} />
           <Route path="catalogue-import" element={<PlaceholderPages page="import" />} />
 
           {/* Inventory */}

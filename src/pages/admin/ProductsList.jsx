@@ -58,6 +58,19 @@ const PAGE_SIZE_OPTIONS = [
 
 const cardIconClass = "h-[18px] w-[18px]";
 
+const mockImageById = Object.fromEntries(
+  mockProducts.map((p) => [String(p.id), p.images?.[0] || ""])
+);
+
+function resolveProductImage(product) {
+  return (
+    product.images?.[0] ||
+    product.image ||
+    mockImageById[String(product.id)] ||
+    ""
+  );
+}
+
 function isLowStock(product) {
   const stock = product.stock ?? 0;
   const threshold = product.lowStockThreshold ?? 10;
@@ -110,7 +123,8 @@ export default function ProductsList() {
       const remoteItems = (res?.items || []).map((p) => ({
         ...p,
         name: p.name || p.title || "Untitled Product",
-        image: p.images?.[0] || p.image || "",
+        image: resolveProductImage(p),
+        images: p.images?.length ? p.images : mockImageById[String(p.id)] ? [mockImageById[String(p.id)]] : [],
         stock: p.stock ?? p.stock_qty ?? 0,
         quantity: p.stock ?? p.stock_qty ?? 0,
         sales: p.salesCount || 0,
@@ -390,7 +404,7 @@ export default function ProductsList() {
                     <tr key={p.id} className="transition">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <ProductThumbnail src={p.image || p.images?.[0]} alt={p.name} size={40} />
+                          <ProductThumbnail src={resolveProductImage(p)} alt={p.name} size={40} />
                           <p className="max-w-[200px] truncate font-medium text-[#f8fafc]" title={p.name}>
                             {p.name}
                           </p>

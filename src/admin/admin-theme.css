@@ -45,6 +45,9 @@
 .admin-theme-light .text-\[\#8b95a7\]\/60 { color: #98a2b3 !important; }
 .admin-theme-light .text-\[\#d8b84f\] { color: #d97706 !important; }
 .admin-theme-light .text-\[\#3d4a63\] { color: #98a2b3 !important; }
+.admin-theme-light .text-\[\#98a2b3\] { color: #667085 !important; }
+.admin-theme-light .text-\[\#e5e7eb\] { color: #344054 !important; }
+.admin-theme-light .text-\[\#c1c7d0\] { color: #475467 !important; }
 
 .admin-theme-light .bg-\[\#0f1726\]\/60 { background-color: #ffffff !important; }
 
@@ -572,8 +575,9 @@
 .admin-theme-dark .bg-\[\#f3f4f6\] { background-color: #252525 !important; }
 
 /* Star empty fill */
-.admin-theme-dark .fill-\[\#e5e7eb\],
-.admin-theme-dark .text-\[\#e5e7eb\] { color: #3f3f3f !important; fill: #3f3f3f !important; }
+.admin-theme-dark .fill-\[\#e5e7eb\] {
+  fill: #3f3f3f !important;
+}
 
 /* Order/review row hover */
 .admin-theme-dark .hover\:bg-\[\#f8fafc\]:hover { background-color: #141414 !important; }
@@ -598,3 +602,96 @@
 .admin-theme-dark .text-\[\#4338ca\] { color: #818cf8 !important; }
 .admin-theme-dark .text-\[\#ea580c\] { color: #fb923c !important; }
 .admin-theme-dark .text-\[\#7c3aed\] { color: #a78bfa !important; }
+
+/* ── Product form (add / edit) ── */
+.admin-theme-light .admin-product-form .admin-product-form__panel {
+  background: #ffffff !important;
+  border-color: #eaecf0 !important;
+  box-shadow: 0 4px 24px rgba(16, 24, 40, 0.06) !important;
+}
+
+.admin-theme-light .admin-product-form .admin-product-form__dropzone {
+  background: #f8fafc !important;
+  border-color: rgba(217, 119, 6, 0.35) !important;
+}
+
+.admin-theme-light .admin-product-form .admin-product-form__dropzone:hover {
+  background: #fffbeb !important;
+  border-color: rgba(217, 119, 6, 0.5) !important;
+}
+
+.admin-theme-dark .admin-product-form .admin-product-form__panel {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.admin-theme-dark .admin-product-form .admin-product-form__dropzone {
+  background: rgba(15, 23, 38, 0.55) !important;
+  border-color: rgba(216, 184, 79, 0.4) !important;
+}
+
+.admin-theme-dark .admin-product-form .admin-product-form__dropzone:hover {
+  border-color: rgba(216, 184, 79, 0.6) !important;
+}
+
+/* ── Product detail (storefront preview) ── */
+.admin-theme-light .admin-product-detail .admin-product-detail__panel {
+  background: #ffffff !important;
+  border-color: #eaecf0 !important;
+  box-shadow: 0 4px 24px rgba(16, 24, 40, 0.06) !important;
+}
+
+.admin-theme-light .admin-product-detail .admin-product-detail__main-image,
+.admin-theme-light .admin-product-detail .admin-product-detail__panel .bg-\[\#0f1726\] {
+  background: #f8fafc !important;
+}
+
+.admin-theme-light .admin-product-detail .text-\[\#8b95a7\] {
+  color: #475467 !important;
+}
+
+.admin-theme-dark .admin-product-detail .admin-product-detail__panel {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.admin-theme-dark .admin-product-detail .admin-product-detail__main-image,
+.admin-theme-dark .admin-product-detail .admin-product-detail__panel .bg-\[\#0f1726\] {
+  background: rgba(15, 23, 38, 0.85) !important;
+}
+
+.admin-product-detail__main-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-product-detail__main-image img {
+  display: block;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* ── Category form (add) ── */
+.admin-theme-light .admin-category-form aside li {
+  background: #f8fafc !important;
+  border-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-attribute-form aside li {
+  background: #f8fafc !important;
+  border-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-attribute-form__toolbar {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-brand-form aside li {
+  background: #f8fafc !important;
+  border-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-brand-form__toolbar {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #eaecf0 !important;
+}
