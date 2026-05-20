@@ -14,8 +14,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader, Btn, useToast } from "../../admin/components/ui";
+import { InboxAvatar } from "../../admin/utils/avatars";
 import { inboxDemoThread, inboxLabels, inboxMessages as seedMessages } from "../../admin/data/mockData";
 import { readInboxState, writeInboxState, findMessageById } from "../../admin/inbox/inboxSession";
+
+const PAGE_SUBTITLE = "System · Inbox · Conversation";
 
 function labelLookup(id) {
   return inboxLabels.find((l) => l.id === id);
@@ -37,13 +40,86 @@ function ensureSessionBase() {
   };
 }
 
+function threadMessageAvatarPayload(msg) {
+  if (msg.role === "System") return null;
+  const parts = (msg.from || "").trim().split(/\s+/).filter(Boolean);
+  const initials =
+    parts.length >= 2
+      ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+      : (parts[0] || "?").slice(0, 2).toUpperCase();
+  return { id: msg.id, from: msg.from, initials };
+}
+
+function ConversationHeaderActions({ children }) {
+  return <div className="flex flex-wrap items-center gap-2">{children}</div>;
+}
+
+function InboxBackLink() {
+  return (
+    <Link
+      to="/admin/inbox"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-[#263145] px-3 py-1.5 text-xs font-semibold text-[#c3cad9] hover:bg-[#182238] hover:text-[#f8fafc]"
+    >
+      <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+      Inbox
+    </Link>
+  );
+}
+
+function MessageBodyPanel({ body, hasAttachment }) {
+  return (
+    <div className="admin-inbox-conversation__message-panel rounded-xl border border-[#263145] bg-[#121b2e] p-5">
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#c3cad9]">{body}</p>
+      {hasAttachment && (
+        <p className="mt-4 flex items-center gap-2 border-t border-[#263145] pt-4 text-xs text-[#8b95a7]">
+          <Paperclip className="h-3.5 w-3.5" strokeWidth={2} />
+          This thread has an attachment (demo — no file).
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ReplyStrip({ onReply }) {
+  return (
+    <div className="admin-inbox-conversation__reply mt-4 rounded-xl border border-[#263145] bg-[#0f1726]/40 p-4">
+      <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+        Reply
+      </label>
+      <textarea
+        rows={3}
+        readOnly
+        placeholder="Write your reply…"
+        className="w-full resize-y rounded-lg border border-[#263145] bg-[#0f1726] px-3 py-2.5 text-sm text-[#c3cad9] placeholder-[#6b7280] outline-none focus:border-[#d8b84f]/50"
+      />
+      <div className="mt-3 flex justify-end">
+        <Btn variant="primary" size="sm" onClick={onReply}>
+          <Reply className="mr-1.5 inline h-3.5 w-3.5" strokeWidth={2} />
+          Send reply
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+function ThreadAvatar({ msg }) {
+  const payload = threadMessageAvatarPayload(msg);
+  if (!payload) {
+    return (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#263145] text-[10px] font-bold uppercase text-[#8b95a7] ring-1 ring-[#3d4a5f]">
+        {msg.from.slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+  return <InboxAvatar message={payload} />;
+}
+
 export default function AdminInboxConversation() {
   const { messageId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
 
-  /** Bumps after session writes so listMessage re-reads from sessionStorage. */
   const [, setSessionRev] = useState(0);
 
   useEffect(() => {
@@ -114,6 +190,10 @@ export default function AdminInboxConversation() {
     toast?.("Download started (demo)");
   }, [toast]);
 
+  const replyDemo = useCallback(() => {
+    toast?.("Reply sent (demo)");
+  }, [toast]);
+
   if (messageId && listMessage) {
     const dateLabel = listMessage.date
       ? new Date(listMessage.date).toLocaleString(undefined, {
@@ -126,19 +206,13 @@ export default function AdminInboxConversation() {
       : "—";
 
     return (
-      <div className="space-y-5">
+      <div className="admin-products-page admin-inbox-conversation space-y-6">
         <PageHeader
           title="Conversation"
-          subtitle={listMessage.subject}
+          subtitle={PAGE_SUBTITLE}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to="/admin/inbox"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[#263145] px-3 py-1.5 text-xs font-semibold text-[#c3cad9] hover:bg-[#182238] hover:text-[#f8fafc]"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
-                Inbox
-              </Link>
+            <ConversationHeaderActions>
+              <InboxBackLink />
               <Btn variant="ghost" size="sm" onClick={toggleStarCurrent} title="Star">
                 <Star
                   className={`h-3.5 w-3.5 ${listMessage.starred ? "fill-[#d8b84f] text-[#d8b84f]" : ""}`}
@@ -152,15 +226,13 @@ export default function AdminInboxConversation() {
               <Btn variant="ghost" size="sm" onClick={trashCurrent} title="Delete">
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
               </Btn>
-            </div>
+            </ConversationHeaderActions>
           }
         />
 
-        <div className="overflow-hidden rounded-2xl border border-[#263145] bg-[#121b2e] shadow-[0_24px_48px_rgba(0,0,0,0.25)]">
+        <div className="overflow-hidden rounded-2xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263145] px-5 py-3">
-            <div className="flex items-center gap-2 text-[11px] text-[#8b95a7]">
-              <span className="tabular-nums">1 message</span>
-            </div>
+            <span className="text-[11px] tabular-nums text-[#8b95a7]">1 message</span>
             <button
               type="button"
               className="rounded-lg p-2 text-[#8b95a7] hover:bg-[#182238] hover:text-[#f8fafc]"
@@ -190,35 +262,17 @@ export default function AdminInboxConversation() {
             </div>
           </div>
 
-          <div className="divide-y divide-[#263145]/60">
-            <div className="bg-[#0f1726]/30">
-              <div className="flex w-full items-center gap-3 px-5 py-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2a3548] to-[#1a2332] text-[11px] font-bold text-[#e5e7eb] ring-1 ring-[#3d4a5f]">
-                  {listMessage.initials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[#f8fafc]">{listMessage.from}</p>
-                  <p className="text-[11px] text-[#6b7280]">{dateLabel}</p>
-                </div>
-              </div>
-              <div className="border-t border-[#263145]/50 px-5 pb-5 pt-0">
-                <div className="rounded-xl border border-[#263145] bg-[#121b2e] p-4">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#c3cad9]">{listMessage.snippet}</p>
-                  {listMessage.hasAttachment && (
-                    <p className="mt-4 flex items-center gap-2 border-t border-[#263145] pt-4 text-xs text-[#8b95a7]">
-                      <Paperclip className="h-3.5 w-3.5" strokeWidth={2} />
-                      This thread has an attachment (demo — no file).
-                    </p>
-                  )}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Btn variant="secondary" size="xs" onClick={() => toast?.("Reply composer (demo)")}>
-                    <Reply className="mr-1 inline h-3 w-3" strokeWidth={2} />
-                    Reply
-                  </Btn>
-                </div>
-              </div>
+          <div className="admin-inbox-conversation__sender flex items-center gap-3 border-b border-[#263145] bg-[#0f1726]/30 px-5 py-4">
+            <InboxAvatar message={listMessage} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#f8fafc]">{listMessage.from}</p>
+              <p className="text-[11px] text-[#6b7280]">{dateLabel}</p>
             </div>
+          </div>
+
+          <div className="px-5 py-5">
+            <MessageBodyPanel body={listMessage.snippet} hasAttachment={listMessage.hasAttachment} />
+            <ReplyStrip onReply={replyDemo} />
           </div>
         </div>
       </div>
@@ -227,8 +281,8 @@ export default function AdminInboxConversation() {
 
   if (messageId && !listMessage) {
     return (
-      <div className="space-y-5">
-        <PageHeader title="Conversation" subtitle="Message not found" />
+      <div className="admin-products-page admin-inbox-conversation space-y-6">
+        <PageHeader title="Conversation" subtitle={PAGE_SUBTITLE} />
         <div className="rounded-2xl border border-[#263145] bg-[#121b2e] px-6 py-12 text-center text-sm text-[#8b95a7]">
           <p>This message is no longer in your inbox session.</p>
           <Link to="/admin/inbox" className="mt-4 inline-block text-sm font-semibold text-[#60a5fa] hover:underline">
@@ -240,19 +294,13 @@ export default function AdminInboxConversation() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="admin-products-page admin-inbox-conversation space-y-6">
       <PageHeader
         title="Conversation"
-        subtitle="Threaded messages and attachments"
+        subtitle={PAGE_SUBTITLE}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              to="/admin/inbox"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#263145] px-3 py-1.5 text-xs font-semibold text-[#c3cad9] hover:bg-[#182238] hover:text-[#f8fafc]"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
-              Inbox
-            </Link>
+          <ConversationHeaderActions>
+            <InboxBackLink />
             <Btn variant="secondary" size="sm" onClick={() => toast?.("Archived (demo thread)")}>
               <Archive className="mr-1.5 inline h-3.5 w-3.5" strokeWidth={2} />
               Archive
@@ -260,25 +308,21 @@ export default function AdminInboxConversation() {
             <Btn variant="ghost" size="sm" onClick={() => toast?.("Removed (demo)")}>
               <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
             </Btn>
-          </div>
+          </ConversationHeaderActions>
         }
       />
 
-      <div className="overflow-hidden rounded-2xl border border-[#263145] bg-[#121b2e] shadow-[0_24px_48px_rgba(0,0,0,0.25)]">
+      <div className="overflow-hidden rounded-2xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263145] px-5 py-3">
-          <div className="flex items-center gap-2 text-[11px] text-[#8b95a7]">
-            <span className="tabular-nums">7 of 512</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#8b95a7] hover:bg-[#182238] hover:text-[#f8fafc]"
-              aria-label="More"
-              onClick={() => toast?.("More actions (demo)")}
-            >
-              <MoreHorizontal className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-          </div>
+          <span className="text-[11px] tabular-nums text-[#8b95a7]">7 of 512</span>
+          <button
+            type="button"
+            className="rounded-lg p-2 text-[#8b95a7] hover:bg-[#182238] hover:text-[#f8fafc]"
+            aria-label="More"
+            onClick={() => toast?.("More actions (demo)")}
+          >
+            <MoreHorizontal className="h-4 w-4" strokeWidth={1.75} />
+          </button>
         </div>
 
         <div className="border-b border-[#263145] px-5 py-4">
@@ -300,12 +344,14 @@ export default function AdminInboxConversation() {
                 <button
                   type="button"
                   onClick={() => toggle(msg.id)}
-                  className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-[#182238]/50"
+                  className="admin-inbox-conversation__sender flex w-full items-center gap-3 border-b border-transparent px-5 py-3 text-left transition hover:bg-[#182238]/50"
                 >
-                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-[#8b95a7]" /> : <ChevronRight className="h-4 w-4 shrink-0 text-[#8b95a7]" />}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2a3548] to-[#1a2332] text-[11px] font-bold text-[#e5e7eb] ring-1 ring-[#3d4a5f]">
-                    {msg.from.slice(0, 2).toUpperCase()}
-                  </div>
+                  {isOpen ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-[#8b95a7]" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#8b95a7]" />
+                  )}
+                  <ThreadAvatar msg={msg} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[#f8fafc]">
                       {msg.from}
@@ -315,11 +361,11 @@ export default function AdminInboxConversation() {
                   </div>
                 </button>
                 {isOpen && (
-                  <div className="border-t border-[#263145]/50 px-5 pb-5 pt-0">
-                    <div className="ml-10 rounded-xl border border-[#263145] bg-[#121b2e] p-4">
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#c3cad9]">{msg.body}</p>
+                  <div className="px-5 pb-5 pt-4">
+                    <div className="ml-7">
+                      <MessageBodyPanel body={msg.body} hasAttachment={false} />
                       {msg.meta && (
-                        <dl className="mt-4 space-y-2 border-t border-[#263145] pt-4 text-xs">
+                        <dl className="admin-inbox-conversation__message-panel mt-4 space-y-2 rounded-xl border border-[#263145] bg-[#121b2e] p-4 text-xs">
                           <div className="flex justify-between gap-4">
                             <dt className="text-[#8b95a7]">Item</dt>
                             <dd className="text-right font-medium text-[#f8fafc]">{msg.meta.item}</dd>
@@ -337,7 +383,12 @@ export default function AdminInboxConversation() {
                             <dd className="tabular-nums text-[#34d399]">{msg.meta.supportEnds}</dd>
                           </div>
                           <div className="pt-1">
-                            <a href={msg.meta.verifyUrl} className="text-[#60a5fa] hover:underline" target="_blank" rel="noreferrer">
+                            <a
+                              href={msg.meta.verifyUrl}
+                              className="text-[#60a5fa] hover:underline"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
                               Verification link
                             </a>
                           </div>
@@ -353,12 +404,7 @@ export default function AdminInboxConversation() {
                           </div>
                         </dl>
                       )}
-                    </div>
-                    <div className="ml-10 mt-3 flex gap-2">
-                      <Btn variant="secondary" size="xs" onClick={() => toast?.("Reply (demo)")}>
-                        <Reply className="mr-1 inline h-3 w-3" strokeWidth={2} />
-                        Reply
-                      </Btn>
+                      <ReplyStrip onReply={() => toast?.("Reply (demo)")} />
                     </div>
                   </div>
                 )}
@@ -377,7 +423,11 @@ export default function AdminInboxConversation() {
                   className="flex min-w-[200px] flex-1 items-center gap-3 rounded-xl border border-[#263145] bg-[#0f1726] px-3 py-2.5"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#334155] bg-[#182238] text-[#8b95a7]">
-                    {a.icon === "pdf" ? <FileText className="h-5 w-5 text-[#f87171]" strokeWidth={1.65} /> : <Paperclip className="h-5 w-5" strokeWidth={1.65} />}
+                    {a.icon === "pdf" ? (
+                      <FileText className="h-5 w-5 text-[#f87171]" strokeWidth={1.65} />
+                    ) : (
+                      <Paperclip className="h-5 w-5" strokeWidth={1.65} />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium text-[#f8fafc]">{a.name}</p>

@@ -25,6 +25,10 @@
 .admin-theme-light .bg-\[\#070b14\] { background-color: #f6f7fb !important; }
 .admin-theme-light .bg-\[\#0f1726\] { background-color: #ffffff !important; }
 .admin-theme-light .bg-\[\#0f1726\]\/80 { background-color: #ffffff !important; }
+/* Inbox unread rows — opaque light surface (Tailwind /40 on dark hex was unreadable with remapped text) */
+.admin-theme-light .bg-\[\#0f1726\]\/40 { background-color: #f1f5f9 !important; }
+.admin-theme-light .bg-\[\#0f1726\]\/30 { background-color: #f8fafc !important; }
+.admin-theme-light .bg-\[\#0f1726\]\/50 { background-color: #f1f5f9 !important; }
 .admin-theme-light .bg-\[\#101827\]\/95 { background-color: #ffffff !important; }
 .admin-theme-light .bg-\[\#121b2e\] { background-color: #ffffff !important; }
 .admin-theme-light .bg-\[\#182238\] { background-color: #f8fafc !important; }
@@ -41,6 +45,7 @@
 .admin-theme-light .border-\[\#263145\] { border-color: #eaecf0 !important; }
 .admin-theme-light .divide-\[\#263145\]\/60 > :not([hidden]) ~ :not([hidden]) { border-color: #eaecf0 !important; }
 .admin-theme-light .text-\[\#f8fafc\] { color: #111827 !important; }
+.admin-theme-light .text-\[\#f8fafc\]\/80 { color: #475467 !important; }
 .admin-theme-light .text-\[\#8b95a7\] { color: #667085 !important; }
 .admin-theme-light .text-\[\#8b95a7\]\/60 { color: #98a2b3 !important; }
 .admin-theme-light .text-\[\#d8b84f\] { color: #d97706 !important; }
@@ -48,6 +53,15 @@
 .admin-theme-light .text-\[\#98a2b3\] { color: #667085 !important; }
 .admin-theme-light .text-\[\#e5e7eb\] { color: #344054 !important; }
 .admin-theme-light .text-\[\#c1c7d0\] { color: #475467 !important; }
+.admin-theme-light .text-\[\#c3cad9\] { color: #475467 !important; }
+.admin-theme-light .text-\[\#344054\] { color: #344054 !important; }
+
+/* MiniBarChart — readable track on white chart cards */
+.admin-theme-light .admin-mini-bar-chart__track {
+  background-color: #eaecf0 !important;
+  border-color: #d0d5dd !important;
+  box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.06) !important;
+}
 
 .admin-theme-light .bg-\[\#0f1726\]\/60 { background-color: #ffffff !important; }
 
@@ -694,4 +708,75 @@
 .admin-theme-light .admin-brand-form__toolbar {
   background: rgba(255, 255, 255, 0.95) !important;
   border-bottom-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-seller-form__toolbar {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #eaecf0 !important;
+}
+
+/* ── Inbox conversation ── */
+.admin-theme-light .admin-inbox-conversation__message-panel {
+  background: #ffffff !important;
+  border-color: #eaecf0 !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.admin-theme-light .admin-inbox-conversation__sender {
+  background: #f8fafc !important;
+  border-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-inbox-conversation__reply {
+  background: #ffffff !important;
+  border-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-inbox-conversation__reply textarea {
+  background: #ffffff !important;
+  border-color: #d0d5dd !important;
+  color: #344054 !important;
+}
+
+.admin-theme-light .admin-inbox-conversation__reply textarea::placeholder {
+  color: #98a2b3 !important;
+}
+
+/* ── Notifications ── */
+.admin-theme-light .admin-notifications-page .admin-notification-row:hover {
+  background-color: #f2f4f7 !important;
+}
+
+.admin-theme-light .admin-notifications-page .admin-notification-row--unread {
+  background-color: #eff6ff !important;
+  border-left: 3px solid #60a5fa;
+}
+
+.admin-theme-light .admin-notifications-page .admin-notification-row--unread:hover {
+  background-color: #e0f2fe !important;
+}
+
+.admin-theme-light .admin-notifications-page .admin-notification-row__title--read {
+  color: #344054 !important;
+}
+
+.admin-theme-light .admin-notifications-page .admin-notification-row__title--unread {
+  color: #101828 !important;
+}
+
+/* ── Settings ── */
+.admin-theme-light .admin-settings-page .admin-settings-panel {
+  background: #ffffff !important;
+  border-color: #eaecf0 !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 18px 50px rgba(16, 24, 40, 0.06) !important;
+}
+
+.admin-theme-light .admin-settings-page .admin-settings-panel__footer {
+  background: #fafbfc !important;
+  border-color: #eaecf0 !important;
+}
+
+.admin-theme-light .admin-settings-page .admin-settings-subpanel {
+  background: #f8fafc !important;
+  border-color: #eaecf0 !important;
 }

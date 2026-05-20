@@ -4,6 +4,13 @@ import {
   Btn, Input, Skeleton, EmptyState, fmtDateTime, useToast,
 } from "../../admin/components/ui";
 import { fetchAdminStockMovements } from "../../services/adminApi";
+import {
+  filterMockMovements,
+  getMockStockMovementTabCounts,
+  loadMockStockMovements,
+  normalizeMockStockMovements,
+} from "../../admin/utils/stockMovements";
+import { stockLogs as mockStockLogs } from "../../admin/data/mockData";
 
 const TYPE_TABS = [
   { id: "all", label: "All" },
@@ -21,19 +28,26 @@ export default function StockLogs() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [usingMock, setUsingMock] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const params = { limit: 200 };
+    if (typeFilter !== "all") params.type = typeFilter;
+    if (search.trim()) params.q = search.trim();
+
     try {
-      const params = { limit: 200 };
-      if (typeFilter !== "all") params.type = typeFilter;
-      if (search.trim()) params.q = search.trim();
       const res = await fetchAdminStockMovements(params);
       setItems(res?.items || []);
       setTotal(res?.total ?? 0);
-    } catch (e) {
-      setError(e?.message || "Failed to load stock movements");
+      setUsingMock(false);
+    } catch {
+      const mock = loadMockStockMovements(params);
+      setItems(mock.items);
+      setTotal(mock.total);
+      setUsingMock(true);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -54,6 +68,13 @@ export default function StockLogs() {
     return arr;
   }, [items, sortAsc]);
 
+  const mockTabCounts = useMemo(() => {
+    const searchOnly = filterMockMovements(normalizeMockStockMovements(mockStockLogs), {
+      q: search.trim() || undefined,
+    });
+    return getMockStockMovementTabCounts(searchOnly);
+  }, [search]);
+
   const typeCounts = useMemo(() => {
     const map = {};
     items.forEach((l) => {
@@ -61,6 +82,8 @@ export default function StockLogs() {
     });
     return map;
   }, [items]);
+
+  const tabCounts = usingMock ? mockTabCounts : { all: total, ...typeCounts };
 
   return (
     <div className="space-y-6">
@@ -74,10 +97,19 @@ export default function StockLogs() {
         }
       />
 
+      {usingMock && (
+        <div className="rounded-lg border border-[#d8b84f]/30 bg-[#d8b84f]/10 px-4 py-3 text-sm text-[#8b95a7]">
+          Showing demo stock logs — connect the API to load live movements.{" "}
+          <button type="button" onClick={load} className="font-semibold text-[#d8b84f] underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}{" "}
-          <button onClick={load} className="ml-2 underline">
+          <button type="button" onClick={load} className="ml-2 underline">
             Try again
           </button>
         </div>
@@ -88,7 +120,7 @@ export default function StockLogs() {
         <Tabs
           tabs={TYPE_TABS.map((t) => ({
             ...t,
-            count: t.id === "all" ? total : typeCounts[t.id] || 0,
+            count: tabCounts[t.id] ?? 0,
           }))}
           activeTab={typeFilter}
           onChange={setTypeFilter}

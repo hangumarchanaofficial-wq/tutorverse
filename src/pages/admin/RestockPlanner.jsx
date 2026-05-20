@@ -1,12 +1,19 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import {
   PageHeader, StatusBadge, ProductThumbnail,
-  Btn, Input, formatNum, useToast,
+  Btn, Input, Select, formatNum, useToast,
 } from "../../admin/components/ui";
 import { products as mockProducts } from "../../admin/data/mockData";
 
 const TARGET_DAYS = 30;
 const LEAD_TIME = 7;
+const SHOW_OPTIONS = [10, 25, 50].map((n) => ({ value: String(n), label: String(n) }));
 
 function getPriority(daysCover) {
   if (daysCover < 3) return "critical";
@@ -19,6 +26,8 @@ const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, normal: 3 };
 
 export default function RestockPlanner() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const toast = useToast();
 
   const restockItems = useMemo(() => {
@@ -39,6 +48,17 @@ export default function RestockPlanner() {
     const q = search.toLowerCase();
     return restockItems.filter((p) => p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q));
   }, [restockItems, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const handleExport = () => {
     const header = "Product,SKU,Current Stock,30-Day Sales,Daily Avg,Days Cover,Lead Time,Suggested Qty,Priority\n";
@@ -117,7 +137,7 @@ export default function RestockPlanner() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((p) => (
+                paged.map((p) => (
                   <tr key={p.id} className="transition hover:bg-[#182238]/60">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -157,6 +177,102 @@ export default function RestockPlanner() {
             </tbody>
           </table>
         </div>
+
+        {filtered.length > 10 && (
+          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-medium text-[#8b95a7]">
+                Show{" "}
+                <span className="mx-1 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+                of {filtered.length}
+              </span>
+              <div className="w-20">
+                <Select
+                  value={String(pageSize)}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  options={SHOW_OPTIONS}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(() => {
+                const navItems =
+                  totalPages <= 5
+                    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+                    : page <= 3
+                      ? [1, 2, 3, "end-gap", totalPages]
+                      : page >= totalPages - 2
+                        ? [1, "start-gap", totalPages - 2, totalPages - 1, totalPages]
+                        : [1, "start-gap", page - 1, page, page + 1, "end-gap", totalPages];
+
+                const navButtonClass =
+                  "flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+                const ghostStyle =
+                  "border-[#263145] bg-[#0f1726] text-[#8b95a7] shadow-sm hover:border-[#d8b84f]/50 hover:bg-[#182238] hover:text-[#f8fafc]";
+                const activeStyle =
+                  "border-[#d8b84f] bg-[#d8b84f] text-[#070b14] shadow-[0_8px_18px_rgba(216,184,79,0.24)]";
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="First page"
+                      disabled={page <= 1}
+                      onClick={() => setPage(1)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Previous page"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    {navItems.map((item) =>
+                      typeof item === "number" ? (
+                        <button
+                          key={item}
+                          type="button"
+                          aria-label={`Page ${item}`}
+                          onClick={() => setPage(item)}
+                          className={`${navButtonClass} ${item === page ? activeStyle : ghostStyle}`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={item} className="px-1 text-sm font-semibold text-[#8b95a7]">
+                          …
+                        </span>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Next page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Last page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage(totalPages)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

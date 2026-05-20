@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader, Btn, useToast } from "../../admin/components/ui";
+import { InboxAvatar, dummyAvatarUrl } from "../../admin/utils/avatars";
 import { inboxMessages as seedMessages, inboxLabels } from "../../admin/data/mockData";
 import { readInboxState, writeInboxState } from "../../admin/inbox/inboxSession";
 
@@ -180,10 +181,12 @@ export default function AdminInboxList() {
         .slice(0, 2)
         .map((p) => p[0].toUpperCase())
         .join("") || "ME";
+      const from = compose.to.includes("@") ? compose.to.split("@")[0] : compose.to;
       const row = {
         id,
-        from: compose.to.includes("@") ? compose.to.split("@")[0] : compose.to,
+        from,
         initials,
+        avatarUrl: dummyAvatarUrl(id, from),
         subject: compose.subject,
         snippet: compose.body.slice(0, 120) || "(No body)",
         starred: false,
@@ -440,9 +443,7 @@ export default function AdminInboxList() {
                   >
                     <Clock className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2a3548] to-[#1a2332] text-[11px] font-bold text-[#e5e7eb] ring-1 ring-[#3d4a5f]">
-                    {m.initials}
-                  </div>
+                  <InboxAvatar message={m} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className={`text-sm ${m.unread ? "font-semibold text-[#f8fafc]" : "font-medium text-[#e5e7eb]"}`}>{m.from}</span>

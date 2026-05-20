@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Award,
+  CircleCheck,
+  Crown,
+  UserRoundPlus,
+  Users,
+  UserX,
+} from "lucide-react";
+import {
   PageHeader,
   StatCard,
   StatusBadge,
@@ -16,6 +24,7 @@ import {
   useToast,
 } from "../../admin/components/ui";
 import { fetchAdminSeller, fetchAdminSellers } from "../../services/adminApi";
+import { getMockSellerDetail, loadMockSellers } from "../../admin/utils/sellers";
 
 const SORT_OPTIONS = [
   { value: "name", label: "Name" },
@@ -133,19 +142,25 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
   const [sellers, setSellers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [usingMock, setUsingMock] = useState(false);
   const [details, setDetails] = useState({}); // sellerId -> { orders, reviews, loading, error }
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const params = { limit: 200 };
+    if (search.trim()) params.q = search.trim();
+    if (filter !== "all") params.filter = filter;
+
     try {
-      const params = { limit: 200 };
-      if (search.trim()) params.q = search.trim();
-      if (filter !== "all") params.filter = filter;
       const res = await fetchAdminSellers(params);
       setSellers(res?.items || []);
-    } catch (e) {
-      setError(e?.message || "Failed to load sellers");
+      setUsingMock(false);
+    } catch {
+      const mock = loadMockSellers(params);
+      setSellers(mock.items);
+      setUsingMock(true);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -166,10 +181,16 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
           ...p,
           [sellerId]: { orders: res?.orders || [], reviews: res?.reviews || [], loading: false },
         }));
-      } catch (e) {
+      } catch {
+        const mock = getMockSellerDetail(sellerId);
         setDetails((p) => ({
           ...p,
-          [sellerId]: { error: e?.message || "Failed to load seller", loading: false },
+          [sellerId]: {
+            orders: mock.orders,
+            reviews: mock.reviews,
+            loading: false,
+            mock: true,
+          },
         }));
       }
     },
@@ -197,12 +218,39 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
     const active = all.filter((c) => c.status === "active");
     const inactive = all.filter((c) => c.status === "inactive");
     return [
-      { label: "Total sellers", value: formatNum(all.length) },
-      { label: "New (30d)", value: formatNum(newSellers.length), variant: "success" },
-      { label: "Established", value: formatNum(established.length) },
-      { label: "Top earners", value: formatNum(topEarners.length), helpText: "> LKR 100k sales" },
-      { label: "Active", value: formatNum(active.length), variant: "success" },
-      { label: "Inactive", value: formatNum(inactive.length), variant: "warning" },
+      {
+        label: "Total sellers",
+        value: formatNum(all.length),
+        icon: <Users className="h-4 w-4" strokeWidth={2} />,
+      },
+      {
+        label: "New (30d)",
+        value: formatNum(newSellers.length),
+        variant: "success",
+        icon: <UserRoundPlus className="h-4 w-4" strokeWidth={2} />,
+      },
+      {
+        label: "Established",
+        value: formatNum(established.length),
+        icon: <Award className="h-4 w-4" strokeWidth={2} />,
+      },
+      {
+        label: "Top earners",
+        value: formatNum(topEarners.length),
+        icon: <Crown className="h-4 w-4" strokeWidth={2} />,
+      },
+      {
+        label: "Active",
+        value: formatNum(active.length),
+        variant: "success",
+        icon: <CircleCheck className="h-4 w-4" strokeWidth={2} />,
+      },
+      {
+        label: "Inactive",
+        value: formatNum(inactive.length),
+        variant: "warning",
+        icon: <UserX className="h-4 w-4" strokeWidth={2} />,
+      },
     ];
   }, [sellers]);
 
@@ -256,10 +304,19 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
         }
       />
 
+      {usingMock && (
+        <div className="rounded-lg border border-[#d8b84f]/30 bg-[#d8b84f]/10 px-4 py-3 text-sm text-[#8b95a7]">
+          Showing demo sellers — connect the API to load live marketplace data.{" "}
+          <button type="button" onClick={load} className="font-semibold text-[#d8b84f] underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}{" "}
-          <button onClick={load} className="ml-2 underline">
+          <button type="button" onClick={load} className="ml-2 underline">
             Try again
           </button>
         </div>

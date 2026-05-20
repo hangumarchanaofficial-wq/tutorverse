@@ -1,5 +1,22 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Banknote,
+  BarChart3,
+  Ban,
+  CircleCheck,
+  Clock,
+  Gem,
+  Package,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  Tag,
+  TrendingDown,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import {
   PageHeader, StatCard, StatusBadge, Tabs, ChartCard, Btn,
   MiniAreaChart, MiniBarChart, MiniDonut, DateRangeSelector,
@@ -34,6 +51,61 @@ const STATUS_COLORS = {
   CANCELLED: "#fb7185",
   RETURNED: "#fb923c",
 };
+
+const CATEGORY_COLORS = {
+  Electronics: "#d8b84f",
+  Beauty: "#34d399",
+  Fashion: "#a78bfa",
+  Accessories: "#60a5fa",
+  Home: "#f59e0b",
+  Food: "#fb923c",
+};
+
+const PAYMENT_METHOD_COLORS = {
+  PAYHERE: "#d8b84f",
+  STRIPE: "#a78bfa",
+  COD: "#60a5fa",
+  BANK: "#34d399",
+};
+
+function categoryColor(name) {
+  return CATEGORY_COLORS[name] || "#8b95a7";
+}
+
+function KpiGrid({ children, className = "grid gap-3 sm:grid-cols-2 lg:grid-cols-4" }) {
+  const items = React.Children.toArray(children);
+  return (
+    <div className={className}>
+      {items.map((child, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05, duration: 0.35, ease: "easeOut" }}
+        >
+          {child}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function LegendRow({ color, label, value, index = 0 }) {
+  return (
+    <motion.div
+      className="flex items-center justify-between text-xs"
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.15 + index * 0.06, duration: 0.3 }}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+        <span className="truncate text-[#8b95a7]">{label}</span>
+      </span>
+      <span className="tabular-nums text-[#f8fafc]">{value}</span>
+    </motion.div>
+  );
+}
 
 function formatStatusLabel(status) {
   return String(status)
@@ -147,22 +219,49 @@ function SalesTab({ range }) {
 
   const donutTotal = ordersInRange.length;
 
+  const peakDay = useMemo(() => {
+    if (!chartData.length) return null;
+    return chartData.reduce((best, d) => (d.revenue > best.revenue ? d : best), chartData[0]);
+  }, [chartData]);
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Revenue" value={formatLkr(totalRevenue)} trend={12.4} icon="💰" />
-        <StatCard label="Total Orders" value={formatNum(ordersInRange.length)} trend={5.3} icon="📦" />
-        <StatCard label="Avg Order Value" value={formatLkr(avgOrderValue)} trend={3.2} icon="📊" />
-        <StatCard label="Paid Orders" value={formatNum(paidCount)} variant="success" icon="✅" />
-      </div>
+      <KpiGrid>
+        <StatCard label="Total Revenue" value={formatLkr(totalRevenue)} trend={12.4} animateValue icon={<Banknote className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Total Orders" value={formatNum(ordersInRange.length)} trend={5.3} animateValue icon={<Package className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Avg Order Value" value={formatLkr(avgOrderValue)} trend={3.2} animateValue icon={<BarChart3 className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Paid Orders" value={formatNum(paidCount)} variant="success" animateValue icon={<CircleCheck className="h-4 w-4" strokeWidth={2} />} />
+      </KpiGrid>
+
+      {peakDay && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.35 }}
+          className="flex items-center gap-2 rounded-lg border border-[#d8b84f]/25 bg-[#d8b84f]/8 px-4 py-2.5 text-xs text-[#8b95a7]"
+        >
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#d8b84f]" strokeWidth={2} />
+          <span>
+            Peak day in range:{" "}
+            <span className="font-semibold text-[#f8fafc]">{peakDay.date}</span>
+            {" · "}
+            <span className="font-semibold tabular-nums text-[#d8b84f]">{formatLkr(peakDay.revenue)}</span>
+          </span>
+        </motion.div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Revenue by Day" subtitle={chartSubtitleForRange(range)} actions={<ExportBtn />}>
-          <MiniAreaChart data={chartData} yKey="revenue" color="#d8b84f" height={200} />
+          <MiniAreaChart key={range} data={chartData} yKey="revenue" color="#d8b84f" height={200} />
         </ChartCard>
         <ChartCard title="Revenue by Category" subtitle="Lifetime catalog roll-up" actions={<ExportBtn />}>
           <MiniBarChart
-            items={categorySales.map((c) => ({ label: c.name, value: c.revenue, formattedValue: formatLkr(c.revenue, true) }))}
-            color="#34d399"
+            items={categorySales.map((c) => ({
+              label: c.name,
+              value: c.revenue,
+              formattedValue: formatLkr(c.revenue, true),
+              color: categoryColor(c.name),
+            }))}
           />
         </ChartCard>
       </div>
@@ -171,22 +270,14 @@ function SalesTab({ range }) {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <MiniDonut segments={donutSegments} size={140} thickness={16} centerLabel="Orders" centerValue={donutTotal} />
             <div className="min-w-0 flex-1 space-y-1.5">
-              {donutSegments.map((s) => (
-                <div key={s.key} className="flex items-center justify-between text-xs">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.color }} />
-                    <span className="truncate text-[#8b95a7]">{s.label}</span>
-                  </span>
-                  <span className="tabular-nums text-[#f8fafc]">{s.value}</span>
-                </div>
+              {donutSegments.map((s, i) => (
+                <LegendRow key={s.key} color={s.color} label={s.label} value={s.value} index={i} />
               ))}
             </div>
           </div>
         </ChartCard>
-        <div className="rounded-xl border border-[#263145] bg-[#121b2e] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-          <h3 className="text-sm font-bold text-[#f8fafc]">Revenue Summary</h3>
-          <p className="mt-0.5 text-[11px] text-[#6b7280]">Aligned with orders in the selected date range.</p>
-          <div className="mt-4 space-y-3">
+        <ChartCard title="Revenue Summary" subtitle="Aligned with orders in the selected date range.">
+          <div className="space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#8b95a7]">Gross Revenue</span>
               <span className="font-mono tabular-nums text-[#f8fafc]">{formatLkr(totalRevenue)}</span>
@@ -205,7 +296,7 @@ function SalesTab({ range }) {
               <span className="font-mono tabular-nums text-[#34d399]">{formatLkr(netRevenue)}</span>
             </div>
           </div>
-        </div>
+        </ChartCard>
       </div>
     </div>
   );
@@ -309,12 +400,12 @@ function CustomersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Customers" value={formatNum(customers.length)} icon="👥" trend={15.6} />
-        <StatCard label="Repeat Customers" value={formatNum(repeatCustomers.length)} icon="🔄" helpText={`${((repeatCustomers.length / customers.length) * 100).toFixed(0)}% rate`} />
-        <StatCard label="New Customers" value={formatNum(newCustomers.length)} icon="🆕" trend={22.1} />
-        <StatCard label="Avg Lifetime Value" value={formatLkr(avgLTV)} icon="💎" trend={8.4} />
-      </div>
+      <KpiGrid>
+        <StatCard label="Total Customers" value={formatNum(customers.length)} trend={15.6} animateValue icon={<Users className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Repeat Customers" value={formatNum(repeatCustomers.length)} helpText={`${((repeatCustomers.length / customers.length) * 100).toFixed(0)}% rate`} icon={<RefreshCw className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="New Customers" value={formatNum(newCustomers.length)} trend={22.1} animateValue icon={<UserPlus className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Avg Lifetime Value" value={formatLkr(avgLTV)} trend={8.4} animateValue icon={<Gem className="h-4 w-4" strokeWidth={2} />} />
+      </KpiGrid>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="New vs Repeat" subtitle="Customer distribution">
@@ -334,15 +425,14 @@ function CustomersTab() {
           </div>
         </ChartCard>
 
-        <div className="rounded-xl border border-[#263145] bg-[#121b2e] p-5">
-          <h3 className="text-sm font-bold text-[#f8fafc]">Customer Lifetime Value</h3>
-          <div className="mt-4 space-y-3">
+        <ChartCard title="Customer Lifetime Value" subtitle="Aggregate spend across all customers">
+          <div className="space-y-3">
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Total Revenue from Customers</span><span className="font-mono tabular-nums text-[#f8fafc]">{formatLkr(totalLTV)}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Average LTV</span><span className="font-mono tabular-nums text-[#d8b84f]">{formatLkr(avgLTV)}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Highest LTV</span><span className="font-mono tabular-nums text-[#34d399]">{formatLkr(topBySpent[0]?.totalSpent)}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Avg Orders / Customer</span><span className="font-mono tabular-nums text-[#f8fafc]">{(customers.reduce((s, c) => s + c.ordersCount, 0) / customers.length).toFixed(1)}</span></div>
           </div>
-        </div>
+        </ChartCard>
       </div>
 
       <div className="flex items-center justify-between">
@@ -386,12 +476,12 @@ function InventoryTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Stock Value (Cost)" value={formatLkr(stockValue)} icon="🏷️" helpText="At cost price" />
-        <StatCard label="Stock Value (Retail)" value={formatLkr(retailValue)} icon="💰" helpText="At selling price" />
-        <StatCard label="Out of Stock" value={formatNum(outOfStock.length)} variant="danger" icon="🚫" />
-        <StatCard label="Low Stock" value={formatNum(lowStock.length)} variant="warning" icon="📉" />
-      </div>
+      <KpiGrid>
+        <StatCard label="Stock Value (Cost)" value={formatLkr(stockValue)} helpText="At cost price" animateValue icon={<Tag className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Stock Value (Retail)" value={formatLkr(retailValue)} helpText="At selling price" animateValue icon={<Banknote className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Out of Stock" value={formatNum(outOfStock.length)} variant="danger" animateValue icon={<Ban className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Low Stock" value={formatNum(lowStock.length)} variant="warning" animateValue icon={<TrendingDown className="h-4 w-4" strokeWidth={2} />} />
+      </KpiGrid>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Stock Health" subtitle="Active product stock levels">
@@ -408,31 +498,21 @@ function InventoryTab() {
               centerValue={activeProducts.length}
             />
             <div className="flex-1 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#34d399]" /> Healthy</span>
-                <span className="tabular-nums text-[#f8fafc]">{healthyStock}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#f59e0b]" /> Low Stock</span>
-                <span className="tabular-nums text-[#f8fafc]">{lowStock.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#f87171]" /> Out of Stock</span>
-                <span className="tabular-nums text-[#f8fafc]">{outOfStock.length}</span>
-              </div>
+              <LegendRow color="#34d399" label="Healthy" value={healthyStock} index={0} />
+              <LegendRow color="#f59e0b" label="Low Stock" value={lowStock.length} index={1} />
+              <LegendRow color="#f87171" label="Out of Stock" value={outOfStock.length} index={2} />
             </div>
           </div>
         </ChartCard>
 
-        <div className="rounded-xl border border-[#263145] bg-[#121b2e] p-5">
-          <h3 className="text-sm font-bold text-[#f8fafc]">Stock Movement Summary</h3>
-          <div className="mt-4 space-y-3">
+        <ChartCard title="Stock Movement Summary" subtitle="Units across all SKUs">
+          <div className="space-y-3">
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Total Units in Stock</span><span className="font-mono tabular-nums text-[#f8fafc]">{formatNum(products.reduce((s, p) => s + p.stock, 0))}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Reserved Stock</span><span className="font-mono tabular-nums text-[#f59e0b]">{formatNum(products.reduce((s, p) => s + p.reservedStock, 0))}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Available Stock</span><span className="font-mono tabular-nums text-[#34d399]">{formatNum(products.reduce((s, p) => s + p.stock - p.reservedStock, 0))}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Total SKUs</span><span className="font-mono tabular-nums text-[#f8fafc]">{products.length}</span></div>
           </div>
-        </div>
+        </ChartCard>
       </div>
 
       <div className="flex items-center justify-between">
@@ -479,20 +559,23 @@ function FinanceTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Collected" value={formatLkr(totalPaid)} variant="success" icon="✅" trend={9.8} />
-        <StatCard label="Pending Collection" value={formatLkr(totalPending)} variant="warning" icon="⏳" />
-        <StatCard label="Refunds Issued" value={formatLkr(totalRefunds)} variant="danger" icon="↩️" />
-        <StatCard label="Pending Refunds" value={formatLkr(pendingRefunds)} icon="🔄" />
-      </div>
+      <KpiGrid>
+        <StatCard label="Total Collected" value={formatLkr(totalPaid)} variant="success" trend={9.8} animateValue icon={<CircleCheck className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Pending Collection" value={formatLkr(totalPending)} variant="warning" animateValue icon={<Clock className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Refunds Issued" value={formatLkr(totalRefunds)} variant="danger" animateValue icon={<RotateCcw className="h-4 w-4" strokeWidth={2} />} />
+        <StatCard label="Pending Refunds" value={formatLkr(pendingRefunds)} animateValue icon={<RefreshCw className="h-4 w-4" strokeWidth={2} />} />
+      </KpiGrid>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Payment Method Breakdown" actions={<ExportBtn />}>
+        <ChartCard title="Payment Method Breakdown" subtitle="Revenue by gateway" actions={<ExportBtn />}>
           <MiniBarChart
+            labelClassName="uppercase tracking-wide font-semibold"
             items={paymentBreakdown.map((p) => ({
-              label: p.method, value: p.amount, formattedValue: formatLkr(p.amount, true),
+              label: p.method,
+              value: p.amount,
+              formattedValue: formatLkr(p.amount, true),
+              color: PAYMENT_METHOD_COLORS[p.method] || "#60a5fa",
             }))}
-            color="#60a5fa"
           />
           <div className="mt-3 space-y-1">
             {paymentBreakdown.map((p) => (
@@ -504,9 +587,8 @@ function FinanceTab() {
           </div>
         </ChartCard>
 
-        <div className="rounded-xl border border-[#263145] bg-[#121b2e] p-5">
-          <h3 className="text-sm font-bold text-[#f8fafc]">Refund Summary</h3>
-          <div className="mt-4 space-y-3">
+        <ChartCard title="Refund Summary" subtitle="Returns and liability">
+          <div className="space-y-3">
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Total Returns</span><span className="tabular-nums text-[#f8fafc]">{returns.length}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Refunded</span><span className="font-mono tabular-nums text-[#f87171]">{formatLkr(totalRefunds)}</span></div>
             <div className="flex justify-between text-xs"><span className="text-[#8b95a7]">Pending Refund Amount</span><span className="font-mono tabular-nums text-[#f59e0b]">{formatLkr(pendingRefunds)}</span></div>
@@ -525,7 +607,7 @@ function FinanceTab() {
               </div>
             ))}
           </div>
-        </div>
+        </ChartCard>
       </div>
 
       <div className="flex items-center justify-between">
@@ -599,7 +681,7 @@ export default function ReportsPage() {
   }, [section, activeTab, navigate]);
 
   return (
-    <div className="space-y-6">
+    <div className="admin-products-page admin-reports-page space-y-6">
       <PageHeader
         title="Reports"
         badge={
@@ -607,17 +689,27 @@ export default function ReportsPage() {
             Advanced
           </span>
         }
-        subtitle="Deep dive into store performance data"
+        subtitle="Dashboard · Analytics · Reports"
         actions={<DateRangeSelector value={range} onChange={setRange} />}
       />
 
       <Tabs tabs={TAB_DEFS} activeTab={activeTab} onChange={(id) => navigate(`/admin/reports/${id}`)} />
 
-      {activeTab === "sales" && <SalesTab range={range} />}
-      {activeTab === "products" && <ProductsTab />}
-      {activeTab === "customers" && <CustomersTab />}
-      {activeTab === "inventory" && <InventoryTab />}
-      {activeTab === "finance" && <FinanceTab />}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.28, ease: "easeOut" }}
+        >
+          {activeTab === "sales" && <SalesTab range={range} />}
+          {activeTab === "products" && <ProductsTab />}
+          {activeTab === "customers" && <CustomersTab />}
+          {activeTab === "inventory" && <InventoryTab />}
+          {activeTab === "finance" && <FinanceTab />}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from "react";
+import { motion } from "framer-motion";
 import {
   Archive,
   BadgeCheck,
@@ -40,7 +41,54 @@ export function PageHeader({ title, subtitle, actions, badge }) {
 }
 
 // ─── StatCard ───
-export function StatCard({ icon, label, value, trend, trendLabel, variant, helpText, onClick }) {
+function parseNumericValue(raw) {
+  const s = String(raw ?? "").trim();
+  const lkr = s.match(/^LKR\s*([\d,.]+)/i);
+  if (lkr) return Number(lkr[1].replace(/,/g, "")) || null;
+  const plain = s.replace(/,/g, "");
+  if (/^\d+(\.\d+)?$/.test(plain)) return Number(plain);
+  return null;
+}
+
+function useAnimatedDisplayValue(value, enabled) {
+  const target = useMemo(() => (enabled ? parseNumericValue(value) : null), [value, enabled]);
+  const [display, setDisplay] = useState(value);
+
+  useEffect(() => {
+    if (target == null || !enabled) {
+      setDisplay(value);
+      return undefined;
+    }
+
+    const prefix = String(value).trim().startsWith("LKR") ? "LKR " : "";
+    const compact = String(value).includes("k") || String(value).includes("M");
+    let start = 0;
+    const duration = 700;
+    const t0 = performance.now();
+    let frame = 0;
+
+    const tick = (now) => {
+      const t = Math.min(1, (now - t0) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      const current = start + (target - start) * eased;
+      if (compact) {
+        setDisplay(prefix + (current >= 1e6 ? `${(current / 1e6).toFixed(1)}M` : `${(current / 1e3).toFixed(1)}k`));
+      } else if (prefix) {
+        setDisplay(`${prefix}${Math.round(current).toLocaleString()}`);
+      } else {
+        setDisplay(Math.round(current).toLocaleString());
+      }
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target, enabled, value]);
+
+  return display;
+}
+
+export function StatCard({ icon, label, value, trend, trendLabel, variant, helpText, onClick, animateValue = false }) {
   const borderColors = { danger: "border-[#f87171]/30", warning: "border-[#f59e0b]/30", success: "border-[#34d399]/30" };
   const border = borderColors[variant] || "border-[#263145]";
   const iconTone = {
@@ -48,6 +96,7 @@ export function StatCard({ icon, label, value, trend, trendLabel, variant, helpT
     warning: "border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#f59e0b] shadow-[0_8px_22px_rgba(245,158,11,0.12)]",
     success: "border-[#34d399]/20 bg-[#34d399]/10 text-[#34d399] shadow-[0_8px_22px_rgba(52,211,153,0.12)]",
   }[variant] || "border-[#d8b84f]/20 bg-[#d8b84f]/10 text-[#d8b84f] shadow-[0_8px_22px_rgba(216,184,79,0.12)]";
+  const displayValue = useAnimatedDisplayValue(value, animateValue);
   return (
     <div
       onClick={onClick}
@@ -61,7 +110,7 @@ export function StatCard({ icon, label, value, trend, trendLabel, variant, helpT
           </span>
         )}
       </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums text-[#f8fafc]">{value}</p>
+      <p className="mt-2 text-2xl font-bold tabular-nums text-[#f8fafc]">{displayValue}</p>
       <div className="mt-1 flex items-center gap-2">
         {trend !== undefined && (
           <span className={`text-xs font-semibold tabular-nums ${trend >= 0 ? "text-[#34d399]" : "text-[#f87171]"}`}>
@@ -650,12 +699,31 @@ function smoothLinePathThroughPoints(pts) {
 }
 
 // ─── MiniDonut (SVG) ───
-export function MiniDonut({ segments = [], size = 120, thickness = 14, centerLabel, centerValue }) {
+export function MiniDonut({
+  segments = [],
+  size = 120,
+  thickness = 14,
+  centerLabel,
+  centerValue,
+  animated = true,
+}) {
   const uid = React.useId().replace(/:/g, "");
   const total = segments.reduce((s, x) => s + Number(x.value || 0), 0) || 1;
   const r = size / 2 - thickness / 2;
   const circ = 2 * Math.PI * r;
-  let offset = 0;
+
+  const arcs = useMemo(() => {
+    let offset = 0;
+    return segments.map((seg) => {
+      const frac = Number(seg.value || 0) / total;
+      const len = circ * frac;
+      const dash = `${len} ${circ - len}`;
+      const o = -offset;
+      offset += len;
+      return { ...seg, dash, o };
+    });
+  }, [segments, total, circ]);
+
   return (
     <div className="relative drop-shadow-[0_4px_24px_rgba(0,0,0,0.35)]" style={{ width: size, height: size }}>
       <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="overflow-visible" style={{ transform: "rotate(-90deg)" }}>
@@ -677,13 +745,24 @@ export function MiniDonut({ segments = [], size = 120, thickness = 14, centerLab
           strokeWidth={thickness}
           strokeLinecap="round"
         />
-        {segments.map((seg, i) => {
-          const frac = Number(seg.value || 0) / total;
-          const len = circ * frac;
-          const dash = `${len} ${circ - len}`;
-          const o = -offset;
-          offset += len;
-          return (
+        {arcs.map((seg, i) =>
+          animated ? (
+            <motion.circle
+              key={i}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={thickness}
+              strokeLinecap="round"
+              filter={`url(#${uid}-donut-shadow)`}
+              opacity={0.96}
+              initial={{ strokeDasharray: `0 ${circ}`, strokeDashoffset: seg.o }}
+              animate={{ strokeDasharray: seg.dash, strokeDashoffset: seg.o }}
+              transition={{ delay: i * 0.08, duration: 0.65, ease: "easeOut" }}
+            />
+          ) : (
             <circle
               key={i}
               cx={size / 2}
@@ -692,19 +771,31 @@ export function MiniDonut({ segments = [], size = 120, thickness = 14, centerLab
               fill="none"
               stroke={seg.color}
               strokeWidth={thickness}
-              strokeDasharray={dash}
-              strokeDashoffset={o}
+              strokeDasharray={seg.dash}
+              strokeDashoffset={seg.o}
               strokeLinecap="round"
               filter={`url(#${uid}-donut-shadow)`}
               opacity={0.96}
             />
-          );
-        })}
+          )
+        )}
       </svg>
       {centerLabel && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-[10px] font-medium tracking-wide text-[#8b95a7]">{centerLabel}</span>
-          <span className="text-lg font-bold tabular-nums tracking-tight text-[#f8fafc] drop-shadow-sm">{centerValue}</span>
+          {animated ? (
+            <motion.span
+              key={centerValue}
+              className="text-lg font-bold tabular-nums tracking-tight text-[#f8fafc] drop-shadow-sm"
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 320, damping: 22 }}
+            >
+              {centerValue}
+            </motion.span>
+          ) : (
+            <span className="text-lg font-bold tabular-nums tracking-tight text-[#f8fafc] drop-shadow-sm">{centerValue}</span>
+          )}
         </div>
       )}
     </div>
@@ -712,7 +803,7 @@ export function MiniDonut({ segments = [], size = 120, thickness = 14, centerLab
 }
 
 // ─── MiniAreaChart (SVG) — smooth curve, glow line, hover tooltip ───
-export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", height = 200 }) {
+export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", height = 200, animated = true }) {
   const baseId = React.useId().replace(/:/g, "");
   const wrapRef = useRef(null);
   const [hover, setHover] = useState(null);
@@ -726,7 +817,7 @@ export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", 
     const iW = width - padL - padR;
     const iH = height - padT - padB;
     if (!data.length) {
-      return { width, padL, padR, padT, padB, iW, iH, pts: [], smoothLine: "", areaD: "", max: 1, gridY: [], values: [] };
+      return { width, padL, padR, padT, padB, iW, iH, pts: [], smoothLine: "", areaD: "", max: 1, gridY: [], values: [], animKey: "empty" };
     }
     const values = data.map((d) => Number(d[yKey] || 0));
     const max = Math.max(1, ...values);
@@ -738,7 +829,8 @@ export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", 
     const first = pts[0];
     const areaD = `${smoothLine} L${last[0]},${baseY} L${first[0]},${baseY} Z`;
     const gridY = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ y: padT + iH * (1 - t), v: max * t }));
-    return { width, padL, padR, padT, padB, iW, iH, pts, smoothLine, areaD, max, gridY, values };
+    const animKey = `${data.length}-${values[0]}-${values[values.length - 1]}`;
+    return { width, padL, padR, padT, padB, iW, iH, pts, smoothLine, areaD, max, gridY, values, animKey };
   }, [data, yKey, height]);
 
   const fmtAxis = (v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v)));
@@ -764,13 +856,14 @@ export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", 
     return <div style={{ height }} className="flex items-center justify-center text-xs text-[#8b95a7]">No data</div>;
   }
 
-  const { width, padL, padR, padT, iH, pts, smoothLine, areaD, gridY, values } = layout;
+  const { width, padL, padR, padT, iH, pts, smoothLine, areaD, gridY, values, animKey } = layout;
   const hi = hover != null ? hover : data.length - 1;
   const hx = pts[hi][0];
   const hy = pts[hi][1];
   const hVal = values[hi];
   const hDate = data[hi]?.date ? String(data[hi].date) : `Day ${hi + 1}`;
   const tipLeftPct = (hx / width) * 100;
+  const showPulse = hover == null && animated;
 
   return (
     <div
@@ -835,16 +928,44 @@ export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", 
             </text>
           </g>
         ))}
-        <path d={areaD} fill={`url(#${baseId}-area)`} className="transition-opacity duration-300" />
-        <path
-          d={smoothLine}
-          fill="none"
-          stroke={`url(#${baseId}-line)`}
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          filter={`url(#${baseId}-glow)`}
-        />
+        {animated ? (
+          <>
+            <motion.path
+              key={`area-${animKey}`}
+              d={areaD}
+              fill={`url(#${baseId}-area)`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.55, ease: "easeOut" }}
+            />
+            <motion.path
+              key={`line-${animKey}`}
+              d={smoothLine}
+              fill="none"
+              stroke={`url(#${baseId}-line)`}
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              filter={`url(#${baseId}-glow)`}
+              initial={{ pathLength: 0, opacity: 0.5 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 1, ease: "easeOut" }}
+            />
+          </>
+        ) : (
+          <>
+            <path d={areaD} fill={`url(#${baseId}-area)`} />
+            <path
+              d={smoothLine}
+              fill="none"
+              stroke={`url(#${baseId}-line)`}
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              filter={`url(#${baseId}-glow)`}
+            />
+          </>
+        )}
         {hover != null && (
           <line
             x1={hx}
@@ -857,15 +978,54 @@ export function MiniAreaChart({ data = [], yKey = "revenue", color = "#d8b84f", 
             opacity={0.5}
           />
         )}
-        <circle cx={hx} cy={hy} r="5" fill="#121b2e" stroke={color} strokeWidth="2.5" className="transition-all duration-150" />
-        <circle cx={hx} cy={hy} r="2" fill="#fffcef" opacity={0.95} />
+        {animated ? (
+          <>
+            <motion.circle
+              cx={hx}
+              cy={hy}
+              r="5"
+              fill="#121b2e"
+              stroke={color}
+              strokeWidth="2.5"
+              animate={{ cx: hx, cy: hy }}
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            />
+            <motion.circle
+              cx={hx}
+              cy={hy}
+              r="2"
+              fill="#fffcef"
+              opacity={0.95}
+              animate={{ cx: hx, cy: hy }}
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            />
+            {showPulse && (
+              <motion.circle
+                cx={pts[pts.length - 1][0]}
+                cy={pts[pts.length - 1][1]}
+                r="5"
+                fill="none"
+                stroke={color}
+                strokeWidth="1.5"
+                initial={{ opacity: 0.6, scale: 1 }}
+                animate={{ opacity: 0, scale: 2.2 }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <circle cx={hx} cy={hy} r="5" fill="#121b2e" stroke={color} strokeWidth="2.5" />
+            <circle cx={hx} cy={hy} r="2" fill="#fffcef" opacity={0.95} />
+          </>
+        )}
       </svg>
     </div>
   );
 }
 
 // ─── MiniBarChart — gradient fills, motion, hover glow ───
-export function MiniBarChart({ items = [], color = "#d8b84f" }) {
+export function MiniBarChart({ items = [], color = "#d8b84f", className = "", labelClassName = "", animated = true }) {
   const max = Math.max(1, ...items.map((it) => Number(it.value || 0)));
   const [mounted, setMounted] = useState(false);
   const [hoverRow, setHoverRow] = useState(null);
@@ -876,29 +1036,46 @@ export function MiniBarChart({ items = [], color = "#d8b84f" }) {
     return () => cancelAnimationFrame(t);
   }, [items.length, max]);
 
+  const RowWrap = animated ? motion.div : "div";
+
   return (
-    <div className="space-y-3">
+    <div className={`admin-mini-bar-chart space-y-4 ${className}`}>
       {items.map((it, i) => {
-        const pct = Math.max(2.5, (Number(it.value) / max) * 100);
+        const pct = Math.max(3, (Number(it.value) / max) * 100);
         const barColor = it.color || color;
         const isHover = hoverRow === i;
         return (
-          <div
-            key={i}
-            className="rounded-lg px-0.5 py-1 transition-colors duration-200"
-            style={{ background: isHover ? "rgba(216,184,79,0.06)" : "transparent" }}
+          <RowWrap
+            key={it.label ?? i}
+            className="admin-mini-bar-chart__row rounded-lg px-0.5 py-1.5 transition-colors duration-200"
+            style={{ background: isHover ? "rgba(216,184,79,0.08)" : "transparent" }}
             onMouseEnter={() => setHoverRow(i)}
             onMouseLeave={() => setHoverRow(null)}
+            {...(animated
+              ? {
+                  initial: { opacity: 0, x: -8 },
+                  animate: { opacity: 1, x: 0 },
+                  transition: { delay: i * 0.08, duration: 0.4, ease: "easeOut" },
+                }
+              : {})}
           >
-            <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className={`truncate font-medium transition-colors ${isHover ? "text-[#f8fafc]" : "text-[#e5e7eb]"}`}>
+            <div className="flex items-baseline justify-between gap-3 text-xs">
+              <span
+                className={`truncate font-medium transition-colors ${labelClassName} ${
+                  isHover ? "text-[#f8fafc]" : "text-[#e5e7eb]"
+                }`}
+              >
                 {it.label}
               </span>
-              <span className={`shrink-0 tabular-nums transition-colors ${isHover ? "text-[#d8b84f]" : "text-[#8b95a7]"}`}>
+              <span
+                className={`shrink-0 tabular-nums font-semibold transition-colors ${
+                  isHover ? "text-[#d8b84f]" : "text-[#8b95a7]"
+                }`}
+              >
                 {it.formattedValue || it.value}
               </span>
             </div>
-            <div className="mt-1.5 h-2.5 overflow-hidden rounded-full border border-[#2a3548]/80 bg-[#0f141d] p-[2px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)]">
+            <div className="admin-mini-bar-chart__track mt-2 h-2.5 overflow-hidden rounded-full border border-[#263145]/80 bg-[#263145]/50 p-[2px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]">
               <div
                 className="relative h-full overflow-hidden rounded-full"
                 style={{
@@ -918,7 +1095,7 @@ export function MiniBarChart({ items = [], color = "#d8b84f" }) {
                 />
               </div>
             </div>
-          </div>
+          </RowWrap>
         );
       })}
     </div>
