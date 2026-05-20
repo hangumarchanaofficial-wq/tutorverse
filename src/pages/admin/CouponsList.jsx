@@ -59,6 +59,16 @@ function randomCode() {
   return code;
 }
 
+function formatCouponValue(c) {
+  if (c.type === "percentage") return `${c.value}%`;
+  if (c.type === "free_delivery") return "Free";
+  return formatLkr(c.value);
+}
+
+function formatCouponType(type) {
+  return String(type || "").replace(/_/g, " ");
+}
+
 const emptyForm = {
   code: "",
   type: "percentage",
@@ -239,6 +249,26 @@ export default function CouponsList() {
     return Math.ceil((new Date(iso).getTime() - now) / 864e5);
   };
 
+  const copyCode = (code) => {
+    navigator.clipboard.writeText(code);
+    toast("Copied!");
+  };
+
+  const couponMenuItems = (c) => [
+    { label: c.isActive ? "Disable" : "Enable", onClick: () => handleToggle(c) },
+    { label: "Duplicate to Form", onClick: () => handleDuplicate(c) },
+    { divider: true },
+    { label: "Delete", danger: true, onClick: () => setDeleteTarget(c) },
+  ];
+
+  const renderCouponRow = (c) => {
+    const status = couponStatus(c);
+    const days = daysUntil(c.expiryDate);
+    const usagePct = c.usageLimit ? Math.min(100, ((c.usedCount || 0) / c.usageLimit) * 100) : 0;
+
+    return { status, days, usagePct };
+  };
+
   return (
     <div className="admin-products-page admin-coupons-page space-y-6">
       <PageHeader
@@ -340,53 +370,117 @@ export default function CouponsList() {
       )}
 
       {/* Search + Filter */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-48 min-w-[10rem]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 w-full flex-1 sm:max-w-xs">
           <Input
             placeholder="Search code…"
             value={codeSearch}
             onChange={(e) => setCodeSearch(e.target.value)}
           />
         </div>
-        <Select label="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} options={FILTER_OPTIONS} />
+        <div className="w-full sm:w-48">
+          <Select label="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} options={FILTER_OPTIONS} />
+        </div>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <EmptyState title="No coupons found" description="Create a new coupon to get started." />
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+      <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
+        {/* Mobile */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {filtered.length === 0 ? (
+            <li className="px-4 py-14">
+              <EmptyState title="No coupons found" description="Create a new coupon to get started." />
+            </li>
+          ) : (
+            paged.map((c) => {
+              const { status, days, usagePct } = renderCouponRow(c);
+              return (
+                <li
+                  key={c.id}
+                  className="flex gap-3 px-4 py-3 transition hover:bg-[#182238]/60"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <code className="truncate rounded bg-[#182238] px-2 py-0.5 font-mono text-xs text-[#d8b84f]">
+                          {c.code}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => copyCode(c.code)}
+                          className="shrink-0 rounded p-1 text-[#8b95a7] hover:bg-[#263145]/50 hover:text-[#f8fafc]"
+                          title="Copy"
+                        >
+                          <Copy className="h-3.5 w-3.5" strokeWidth={2} />
+                        </button>
+                      </div>
+                      <StatusBadge status={status} />
+                    </div>
+                    <p className="mt-1 text-xs capitalize text-[#8b95a7]">
+                      {formatCouponType(c.type)} · {formatCouponValue(c)}
+                    </p>
+                    <p className="mt-1 text-xs text-[#8b95a7]">
+                      {c.usedCount ?? 0}/{c.usageLimit || "∞"} used
+                      {days !== null &&
+                        (days > 0 ? ` · ${days}d left` : ` · Expired ${Math.abs(days)}d ago`)}
+                    </p>
+                    {c.usageLimit > 0 && (
+                      <div className="mt-2 h-1.5 max-w-[140px] overflow-hidden rounded-full bg-[#263145]">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${usagePct}%`,
+                            background: usagePct > 80 ? "#f87171" : usagePct > 50 ? "#f59e0b" : "#34d399",
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="shrink-0 self-center">
+                    <ActionMenu items={couponMenuItems(c)} />
+                  </div>
+                </li>
+              );
+            })
+          )}
+        </ul>
+
+        {/* Desktop */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="admin-table min-w-[900px] w-full text-left text-sm">
+            <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+              <tr>
+                <th className="px-4 py-3 align-middle font-medium">Code</th>
+                <th className="px-4 py-3 align-middle font-medium">Type</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Value</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Min Order</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Max Discount</th>
+                <th className="px-4 py-3 align-middle font-medium">Usage</th>
+                <th className="px-4 py-3 align-middle font-medium">Start</th>
+                <th className="px-4 py-3 align-middle font-medium">Expiry</th>
+                <th className="px-4 py-3 align-middle font-medium">Status</th>
+                <th className="w-10 px-4 py-3 align-middle" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#263145]/60">
+              {filtered.length === 0 ? (
                 <tr>
-                  {["Code", "Type", "Value", "Min Order", "Max Discount", "Usage", "Start", "Expiry", "Status", ""].map(
-                    (h, i) => (
-                      <th key={i} className="whitespace-nowrap px-4 py-3">
-                        {h}
-                      </th>
-                    )
-                  )}
+                  <td colSpan={10} className="px-4 py-14">
+                    <EmptyState title="No coupons found" description="Create a new coupon to get started." />
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[#263145]/60">
-                {paged.map((c) => {
-                  const status = couponStatus(c);
-                  const days = daysUntil(c.expiryDate);
-                  const usagePct = c.usageLimit ? Math.min(100, ((c.usedCount || 0) / c.usageLimit) * 100) : 0;
+              ) : (
+                paged.map((c) => {
+                  const { status, days, usagePct } = renderCouponRow(c);
                   return (
                     <tr key={c.id} className="transition hover:bg-[#182238]/60">
-                      <td className="px-4 py-3">
+                      <td className="align-middle px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <code className="rounded bg-[#182238] px-2 py-0.5 font-mono text-xs text-[#d8b84f]">
+                          <code className="whitespace-nowrap rounded bg-[#182238] px-2 py-0.5 font-mono text-xs text-[#d8b84f]">
                             {c.code}
                           </code>
                           <button
                             type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(c.code);
-                              toast("Copied!");
-                            }}
+                            onClick={() => copyCode(c.code)}
                             className="rounded p-1 text-[#8b95a7] hover:bg-[#263145]/50 hover:text-[#f8fafc]"
                             title="Copy"
                           >
@@ -394,23 +488,25 @@ export default function CouponsList() {
                           </button>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs capitalize text-[#f8fafc]">{c.type.replace("_", " ")}</td>
-                      <td className="px-4 py-3 tabular-nums text-[#f8fafc]">
-                        {c.type === "percentage"
-                          ? `${c.value}%`
-                          : c.type === "free_delivery"
-                            ? "Free"
-                            : formatLkr(c.value)}
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-xs capitalize text-[#f8fafc]">
+                        {formatCouponType(c.type)}
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-[#8b95a7]">{formatLkr(c.minOrder)}</td>
-                      <td className="px-4 py-3 tabular-nums text-[#8b95a7]">{formatLkr(c.maxDiscount)}</td>
-                      <td className="px-4 py-3">
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#f8fafc]">
+                        {formatCouponValue(c)}
+                      </td>
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#8b95a7]">
+                        {formatLkr(c.minOrder)}
+                      </td>
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#8b95a7]">
+                        {formatLkr(c.maxDiscount)}
+                      </td>
+                      <td className="align-middle px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs tabular-nums text-[#f8fafc]">
+                          <span className="whitespace-nowrap text-xs tabular-nums text-[#f8fafc]">
                             {c.usedCount ?? 0}/{c.usageLimit || "∞"}
                           </span>
                           {c.usageLimit > 0 && (
-                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#263145]">
+                            <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-[#263145]">
                               <div
                                 className="h-full rounded-full"
                                 style={{
@@ -422,8 +518,10 @@ export default function CouponsList() {
                           )}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-[#8b95a7]">{fmtDate(c.startDate)}</td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-xs text-[#8b95a7]">
+                        {fmtDate(c.startDate)}
+                      </td>
+                      <td className="align-middle whitespace-nowrap px-4 py-3">
                         <div className="text-xs text-[#8b95a7]">{fmtDate(c.expiryDate)}</div>
                         {days !== null && (
                           <div
@@ -433,34 +531,30 @@ export default function CouponsList() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="align-middle whitespace-nowrap px-4 py-3">
                         <StatusBadge status={status} />
                       </td>
-                      <td className="px-4 py-3">
-                        <ActionMenu
-                          items={[
-                            { label: c.isActive ? "Disable" : "Enable", onClick: () => handleToggle(c) },
-                            { label: "Duplicate to Form", onClick: () => handleDuplicate(c) },
-                            { divider: true },
-                            { label: "Delete", danger: true, onClick: () => setDeleteTarget(c) },
-                          ]}
-                        />
+                      <td className="align-middle px-4 py-3 text-right">
+                        <div className="flex justify-end">
+                          <ActionMenu items={couponMenuItems(c)} />
+                        </div>
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          {filtered.length > 10 && (
-            <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs font-medium text-[#8b95a7]">
-                  Show{" "}
-                  <span className="mx-1 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
-                  of {filtered.length}
-                </span>
+        {filtered.length > pageSize && (
+          <div className="admin-table-pagination border-t border-[#263145]">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <span className="text-xs font-medium text-[#8b95a7]">
+                Show data{" "}
+                <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+                of {filtered.length}
+              </span>
                 <div className="w-20">
                   <Select
                     value={String(pageSize)}
@@ -547,9 +641,8 @@ export default function CouponsList() {
                 })()}
               </div>
             </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!deleteTarget}

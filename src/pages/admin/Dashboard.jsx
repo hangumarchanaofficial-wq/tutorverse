@@ -11,9 +11,18 @@ import {
   Star,
   Package,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import { fetchAdminAnalytics, fetchAdminStockReport } from "../../services/adminApi";
+import {
+  buildDashboardAnalytics,
+  buildDashboardStockReport,
+  mergeDashboardAnalytics,
+  mergeDashboardStockReport,
+  fillSalesByDay,
+} from "../../admin/data/dashboardDemo";
 import { formatLkr, formatNum, timeAgo } from "../../admin/components/ui";
+import OrdersOverviewChart from "../../admin/components/OrdersOverviewChart";
 
 /* ─── helpers ─────────────────────────────────────── */
 const FALLBACK_IMGS = [
@@ -42,28 +51,78 @@ function Thumb({ src, alt, idx, rounded = false }) {
 
 const PALETTE = ["#f97316", "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
 
-/* ─── Smooth animated area spark ───────────────────── */
-function AreaSpark({ color, points }) {
-  const W = 300; const H = 56;
+/* ─── Interactive area spark (KPI cards) ───────────── */
+function AreaSpark({ color, points, labels = [], formatValue, dark = false }) {
+  const [hov, setHov] = useState(null);
+  const svgRef = useRef(null);
+  const gradId = useRef(`sg-${Math.random().toString(36).slice(2, 9)}`).current;
+
+  const W = 300;
+  const H = 56;
+  const pad = 4;
   const safe = (points || []).map((v) => Number(v) || 0);
   const n = safe.length;
   const max = n ? Math.max(...safe) : 1;
   const min = n ? Math.min(...safe) : 0;
   const rng = Math.max(max - min, 1);
-  const pad = 4;
+  const fmt = formatValue || ((v) => formatNum(v));
+
+  const coords = (i) => {
+    const x = n <= 1 ? W / 2 : (i / (n - 1)) * (W - pad * 2) + pad;
+    const y = H - pad - ((safe[i] - min) / rng) * (H - pad * 2);
+    return [x, y];
+  };
+
+  const pts = safe.map((_, i) => coords(i));
+  const slotW = n <= 1 ? W : (W - pad * 2) / Math.max(n - 1, 1);
+
+  const pickIndex = (clientX) => {
+    if (!svgRef.current || !n) return null;
+    const rect = svgRef.current.getBoundingClientRect();
+    const svgX = ((clientX - rect.left) / rect.width) * W;
+    let closest = 0;
+    let minD = Infinity;
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(svgX - pts[i][0]);
+      if (d < minD) { minD = d; closest = i; }
+    }
+    return minD < slotW * 0.6 ? closest : null;
+  };
+
+  const handlePointer = (clientX) => setHov(pickIndex(clientX));
+  const handleMove = (e) => handlePointer(e.clientX);
+  const handleTouch = (e) => {
+    if (e.touches[0]) handlePointer(e.touches[0].clientX);
+  };
 
   if (n < 2) {
+    const y = H - pad;
+    const x = W / 2;
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-12 w-full">
-        <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-full w-full cursor-crosshair"
+        preserveAspectRatio="none"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHov(null)}
+        onTouchMove={handleTouch}
+        onTouchEnd={() => setHov(null)}
+      >
+        <line x1={pad} y1={y} x2={W - pad} y2={y} stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.45" />
+        {n === 1 && (
+          <>
+            <circle cx={x} cy={y} r="4" fill={color} opacity={hov === 0 ? 1 : 0.6} />
+            {hov === 0 && (
+              <SparkTooltip
+                x={x} y={y - 10} label={labels[0]} value={fmt(safe[0])} color={color} dark={dark} W={W}
+              />
+            )}
+          </>
+        )}
       </svg>
     );
   }
-
-  const pts = safe.map((v, i) => [
-    (i / (n - 1)) * (W - pad * 2) + pad,
-    H - pad - ((v - min) / rng) * (H - pad * 2),
-  ]);
 
   let d = `M ${pts[0][0]} ${pts[0][1]}`;
   for (let i = 1; i < pts.length; i++) {
@@ -72,23 +131,111 @@ function AreaSpark({ color, points }) {
     d += ` C ${cp1x} ${pts[i - 1][1]} ${cp2x} ${pts[i][1]} ${pts[i][0]} ${pts[i][1]}`;
   }
   const area = `${d} L ${W - pad} ${H} L ${pad} ${H} Z`;
-  const gid = `sg-${color.replace("#", "")}`;
+  const active = hov !== null ? hov : null;
+  const dimOpacity = active !== null ? 0.35 : 1;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-12 w-full" preserveAspectRatio="none">
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${W} ${H}`}
+      className="h-full w-full cursor-crosshair"
+      preserveAspectRatio="none"
+      onMouseMove={handleMove}
+      onMouseLeave={() => setHov(null)}
+      onTouchMove={handleTouch}
+      onTouchEnd={() => setHov(null)}
+      role="img"
+      aria-label="Trend chart"
+    >
       <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#${gid})`} />
+      <path d={area} fill={`url(#${gradId})`} opacity={dimOpacity} />
       <path
-        d={d} fill="none" stroke={color} strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round"
+        d={d}
+        fill="none"
+        stroke={color}
+        strokeWidth={active !== null ? 2.5 : 2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={dimOpacity}
         style={{ strokeDasharray: 600, strokeDashoffset: 600, animation: "lineDraw 1s ease forwards" }}
       />
+      {active !== null && (
+        <line
+          x1={pts[active][0]}
+          y1={pad}
+          x2={pts[active][0]}
+          y2={H - pad}
+          stroke={color}
+          strokeWidth="1"
+          strokeDasharray="3 3"
+          opacity="0.55"
+        />
+      )}
+      {pts.map(([x, y], i) => (
+        <g key={i}>
+          <circle
+            cx={x}
+            cy={y}
+            r={active === i ? 5 : 0}
+            fill={dark ? "#0d0d0d" : "#ffffff"}
+            stroke={color}
+            strokeWidth="2"
+            style={{ transition: "r 120ms ease" }}
+          />
+          {active === i && (
+            <circle cx={x} cy={y} r="2.5" fill={color} />
+          )}
+        </g>
+      ))}
+      {active !== null && (
+        <SparkTooltip
+          x={pts[active][0]}
+          y={pts[active][1]}
+          label={labels[active]}
+          value={fmt(safe[active])}
+          color={color}
+          dark={dark}
+          W={W}
+        />
+      )}
     </svg>
+  );
+}
+
+function SparkTooltip({ x, y, label, value, color, dark, W }) {
+  const tipW = 88;
+  const tipH = label ? 36 : 24;
+  const tipX = Math.max(4, Math.min(W - tipW - 4, x - tipW / 2));
+  const tipY = Math.max(4, y - tipH - 10);
+  const bg = dark ? "#1a1a1a" : "#ffffff";
+  const border = dark ? "#333" : "#e5e7eb";
+  const textMain = dark ? "#f1f5f9" : "#111827";
+  const textMuted = dark ? "#9ca3af" : "#6b7280";
+
+  return (
+    <g pointerEvents="none">
+      <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="6" fill={bg} stroke={border} strokeWidth="1" />
+      {label ? (
+        <text x={tipX + tipW / 2} y={tipY + 12} textAnchor="middle" fontSize="8" fill={textMuted}>
+          {label}
+        </text>
+      ) : null}
+      <text
+        x={tipX + tipW / 2}
+        y={tipY + (label ? 26 : 16)}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="700"
+        fill={textMain}
+      >
+        {value}
+      </text>
+    </g>
   );
 }
 
@@ -148,183 +295,222 @@ function AnimDonut({ segments, cx = 110, cy = 110, r = 78, sw = 28, onHover, cen
   );
 }
 
-/* ─── Animated bar + line chart ─────────────────────── */
-function BarLineChart({ bars, line, months, dark = false }) {
+/* ─── Animated bar + line chart (12-month revenue hero) ── */
+function BarLineChart({ bars = [], line = [], months = [], dark = false }) {
   const [drawn, setDrawn] = useState(false);
   const [hov, setHov] = useState(null);
   const svgRef = useRef(null);
-  useEffect(() => { const t = setTimeout(() => setDrawn(true), 80); return () => clearTimeout(t); }, []);
 
-  const W = 580; const H = 190;
-  const bw = 22; const gap = 26;
-  const safeBars = bars.map((v) => Number(v) || 0);
-  const safeLine = line.map((v) => Number(v) || 0);
+  const n = Math.max(months.length, bars.length, line.length, 1);
+  const dataKey = `${n}-${bars.join(",")}-${line.join(",")}`;
+
+  useEffect(() => {
+    setDrawn(false);
+    const t = setTimeout(() => setDrawn(true), 60);
+    return () => clearTimeout(t);
+  }, [dataKey]);
+
+  const W = 600;
+  const H = 190;
+  const padL = 32;
+  const padR = 16;
+  const padT = 14;
+  const padB = 28;
+  const chartH = H - padT - padB;
+  const innerW = W - padL - padR;
+  const slotW = innerW / n;
+  const barW = Math.min(32, Math.max(10, slotW * 0.55));
+
+  const safeBars = Array.from({ length: n }, (_, i) => Number(bars[i]) || 0);
+  const safeLine = Array.from({ length: n }, (_, i) => Number(line[i]) || 0);
   const maxV = Math.max(...safeBars, 1);
   const maxLine = Math.max(...safeLine, 1);
 
-  const linePts = safeLine.map((v, i) => {
-    const x = 20 + i * (bw + gap) + bw / 2;
-    const y = H - 30 - (v / maxLine) * (H - 50);
-    return [x, y];
-  });
-  let linePath = `M ${linePts[0]?.[0] || 0} ${linePts[0]?.[1] || 0}`;
-  for (let i = 1; i < linePts.length; i++) {
-    const cp1x = linePts[i - 1][0] + (linePts[i][0] - linePts[i - 1][0]) * 0.4;
-    const cp2x = linePts[i][0] - (linePts[i][0] - linePts[i - 1][0]) * 0.4;
-    linePath += ` C ${cp1x} ${linePts[i - 1][1]} ${cp2x} ${linePts[i][1]} ${linePts[i][0]} ${linePts[i][1]}`;
+  const centerX = (i) => padL + slotW * i + slotW / 2;
+  const barX = (i) => centerX(i) - barW / 2;
+  const barH = (v, max) => (Number(v) / max) * chartH;
+  const barY = (v, max) => padT + chartH - (drawn ? barH(v, max) : 0);
+  const lineY = (v, max) => padT + chartH - (Number(v) / max) * chartH;
+
+  const linePts = safeLine.map((v, i) => [centerX(i), lineY(v, maxLine)]);
+
+  let linePath = "";
+  if (linePts.length === 1) {
+    linePath = `M ${linePts[0][0]} ${linePts[0][1]}`;
+  } else if (linePts.length > 1) {
+    linePath = `M ${linePts[0][0]} ${linePts[0][1]}`;
+    for (let i = 1; i < linePts.length; i++) {
+      const cp1x = linePts[i - 1][0] + (linePts[i][0] - linePts[i - 1][0]) * 0.4;
+      const cp2x = linePts[i][0] - (linePts[i][0] - linePts[i - 1][0]) * 0.4;
+      linePath += ` C ${cp1x} ${linePts[i - 1][1]} ${cp2x} ${linePts[i][1]} ${linePts[i][0]} ${linePts[i][1]}`;
+    }
   }
 
   const handleMove = (e) => {
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
     const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    let closest = -1; let minD = Infinity;
-    safeBars.forEach((_, i) => {
-      const cx = 20 + i * (bw + gap) + bw / 2;
-      const d = Math.abs(svgX - cx);
-      if (d < minD) { minD = d; closest = i; }
-    });
-    setHov(minD < (bw + gap) * 0.75 ? closest : null);
+    let closest = 0;
+    let minD = Infinity;
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(svgX - centerX(i));
+      if (d < minD) {
+        minD = d;
+        closest = i;
+      }
+    }
+    setHov(minD < slotW * 0.55 ? closest : null);
   };
 
-  const tipW = 145; const tipH = 62;
-  const tipX = hov !== null ? Math.max(4, Math.min(W - tipW - 4, 20 + hov * (bw + gap) + bw / 2 - tipW / 2)) : 0;
-  const barTopY = hov !== null ? H - 30 - (safeBars[hov] / maxV) * (H - 50) : 0;
-  const lineY = hov !== null ? linePts[hov]?.[1] || 0 : 0;
-  const tipY = hov !== null ? Math.max(4, Math.min(barTopY, lineY) - tipH - 8) : 0;
+  const tipW = 145;
+  const tipH = 62;
+  const tipX =
+    hov !== null ? Math.max(4, Math.min(W - tipW - 4, centerX(hov) - tipW / 2)) : 0;
+  const tipY =
+    hov !== null
+      ? Math.max(4, Math.min(barY(safeBars[hov], maxV), lineY(safeLine[hov], maxLine)) - tipH - 8)
+      : 0;
+
+  const scrollMinW = Math.max(n * 44, 320);
 
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="h-full w-full cursor-crosshair"
-      onMouseMove={handleMove} onMouseLeave={() => setHov(null)}>
+    <div className="admin-chart-scroll w-full min-w-0">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="block h-48 w-full max-w-none cursor-crosshair sm:h-56"
+        style={{ minWidth: scrollMinW }}
+        preserveAspectRatio="xMidYMid meet"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHov(null)}
+      >
       {[0.25, 0.5, 0.75, 1].map((f) => (
-        <line key={f} x1="10" y1={H - 30 - f * (H - 50)} x2={W - 10} y2={H - 30 - f * (H - 50)}
-          stroke={dark ? "#222222" : "#f3f4f6"} strokeWidth="1" />
+        <line
+          key={f}
+          x1={padL}
+          y1={padT + chartH * (1 - f)}
+          x2={W - padR}
+          y2={padT + chartH * (1 - f)}
+          stroke={dark ? "#222222" : "#f3f4f6"}
+          strokeWidth="1"
+        />
       ))}
+      <line
+        x1={padL}
+        y1={padT + chartH}
+        x2={W - padR}
+        y2={padT + chartH}
+        stroke={dark ? "#444" : "#0f172a"}
+        strokeWidth="1"
+      />
       {hov !== null && (
-        <line x1={20 + hov * (bw + gap) + bw / 2} y1={12}
-          x2={20 + hov * (bw + gap) + bw / 2} y2={H - 30}
-          stroke={dark ? "#555" : "#94a3b8"} strokeWidth="1" strokeDasharray="4 3" />
+        <line
+          x1={centerX(hov)}
+          y1={padT}
+          x2={centerX(hov)}
+          y2={padT + chartH}
+          stroke={dark ? "#555" : "#94a3b8"}
+          strokeWidth="1"
+          strokeDasharray="4 3"
+        />
       )}
       {safeBars.map((v, i) => {
-        const x = 20 + i * (bw + gap);
-        const fullH = (v / maxV) * (H - 50);
-        const h = drawn ? fullH : 2;
-        const y = H - 30 - h;
+        const h = drawn ? barH(v, maxV) : 0;
+        if (h < 0.5) return null;
         return (
-          <rect key={i} x={x} y={y} width={bw} height={h} rx="5"
+          <rect
+            key={`bar-${i}`}
+            x={barX(i)}
+            y={barY(v, maxV)}
+            width={barW}
+            height={h}
+            rx="4"
             fill={hov === i ? "#ea580c" : "#f97316"}
-            style={{ transition: `height 700ms ease ${i * 40}ms, y 700ms ease ${i * 40}ms, fill 150ms` }} />
+          />
         );
       })}
-      {linePts.length > 1 && (
-        <path d={linePath} fill="none" stroke={dark ? "#d1d5db" : "#0f172a"} strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"
-          style={{ strokeDasharray: 900, strokeDashoffset: drawn ? 0 : 900, transition: "stroke-dashoffset 1.2s ease 0.3s" }} />
+      {linePts.length > 1 && drawn && (
+        <path
+          d={linePath}
+          fill="none"
+          stroke={dark ? "#d1d5db" : "#0f172a"}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       )}
-      {hov !== null && linePts[hov] && (
-        <circle cx={linePts[hov][0]} cy={linePts[hov][1]} r="5"
-          fill={dark ? "#0d0d0d" : "white"} stroke={dark ? "#d1d5db" : "#0f172a"} strokeWidth="2" />
-      )}
+      {drawn &&
+        linePts.map(([x, y], i) => (
+          <circle
+            key={`dot-${i}`}
+            cx={x}
+            cy={y}
+            r={hov === i ? 5 : 3}
+            fill={dark ? "#0d0d0d" : "#ffffff"}
+            stroke={dark ? "#d1d5db" : "#0f172a"}
+            strokeWidth="2"
+          />
+        ))}
       {months.map((m, i) => (
-        <text key={i} x={20 + i * (bw + gap) + bw / 2} y={H - 8}
-          textAnchor="middle" fontSize="9"
+        <text
+          key={`lbl-${i}`}
+          x={centerX(i)}
+          y={H - 6}
+          textAnchor="middle"
+          fontSize="9"
           fill={hov === i ? (dark ? "#e5e7eb" : "#374151") : "#9ca3af"}
-          fontWeight={hov === i ? "700" : "400"}>{m}</text>
+          fontWeight={hov === i ? "700" : "400"}
+        >
+          {m}
+        </text>
       ))}
-      {hov !== null && (
+      {hov !== null && months[hov] != null && (
         <g>
-          <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="8"
-            fill={dark ? "#1a1a1a" : "white"}
-            filter={dark ? "drop-shadow(0 2px 12px rgba(0,0,0,0.5))" : "drop-shadow(0 2px 8px rgba(0,0,0,0.12))"} />
-          <text x={tipX + 10} y={tipY + 17} fontSize="10" fontWeight="700" fill={dark ? "#f1f5f9" : "#374151"}>{months[hov]}</text>
+          <rect
+            x={tipX}
+            y={tipY}
+            width={tipW}
+            height={tipH}
+            rx="8"
+            fill={dark ? "#1a1a1a" : "#ffffff"}
+            stroke={dark ? "#333" : "#e5e7eb"}
+            strokeWidth="1"
+          />
+          <text x={tipX + 10} y={tipY + 17} fontSize="10" fontWeight="700" fill={dark ? "#f1f5f9" : "#374151"}>
+            {months[hov]}
+          </text>
           <circle cx={tipX + 10} cy={tipY + 31} r="4" fill="#f97316" />
-          <text x={tipX + 20} y={tipY + 35} fontSize="10" fill={dark ? "#9ca3af" : "#6b7280"}>Revenue</text>
-          <text x={tipX + tipW - 8} y={tipY + 35} fontSize="10" fontWeight="700" fill={dark ? "#f1f5f9" : "#111827"} textAnchor="end">
+          <text x={tipX + 20} y={tipY + 35} fontSize="10" fill={dark ? "#9ca3af" : "#6b7280"}>
+            Revenue
+          </text>
+          <text
+            x={tipX + tipW - 8}
+            y={tipY + 35}
+            fontSize="10"
+            fontWeight="700"
+            fill={dark ? "#f1f5f9" : "#111827"}
+            textAnchor="end"
+          >
             {formatLkr(safeBars[hov], true)}
           </text>
           <circle cx={tipX + 10} cy={tipY + 49} r="4" fill={dark ? "#d1d5db" : "#0f172a"} />
-          <text x={tipX + 20} y={tipY + 53} fontSize="10" fill={dark ? "#9ca3af" : "#6b7280"}>Orders</text>
-          <text x={tipX + tipW - 8} y={tipY + 53} fontSize="10" fontWeight="700" fill={dark ? "#f1f5f9" : "#111827"} textAnchor="end">
+          <text x={tipX + 20} y={tipY + 53} fontSize="10" fill={dark ? "#9ca3af" : "#6b7280"}>
+            Orders
+          </text>
+          <text
+            x={tipX + tipW - 8}
+            y={tipY + 53}
+            fontSize="10"
+            fontWeight="700"
+            fill={dark ? "#f1f5f9" : "#111827"}
+            textAnchor="end"
+          >
             {formatNum(safeLine[hov])}
           </text>
         </g>
       )}
     </svg>
-  );
-}
-
-/* ─── Daily orders bar chart (compact, no line) ─────── */
-function DailyBarsChart({ days, dark = false }) {
-  const [drawn, setDrawn] = useState(false);
-  const [hov, setHov] = useState(null);
-  const svgRef = useRef(null);
-  useEffect(() => { const t = setTimeout(() => setDrawn(true), 120); return () => clearTimeout(t); }, []);
-
-  const safe = (days || []).map((d) => ({ ...d, orders: Number(d.orders) || 0 }));
-  const n = safe.length;
-  if (!n) return <p className="grid h-32 place-items-center text-xs text-[#9ca3af]">No data yet.</p>;
-
-  const W = 480; const H = 130;
-  const maxV = Math.max(...safe.map((d) => d.orders), 1);
-  const bw = Math.max(4, Math.floor((W - 20) / n) - 4);
-  const step = Math.floor((W - 20) / n);
-
-  const handleMove = (e) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    let closest = -1; let minD = Infinity;
-    safe.forEach((_, i) => {
-      const cx = 10 + i * step + bw / 2;
-      const d = Math.abs(svgX - cx);
-      if (d < minD) { minD = d; closest = i; }
-    });
-    setHov(minD < step * 0.75 ? closest : null);
-  };
-
-  const dayLabel = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (n <= 7) return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
-    return `${d.getDate()}/${d.getMonth() + 1}`;
-  };
-  const showEvery = n <= 7 ? 1 : n <= 14 ? 2 : 5;
-
-  return (
-    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="h-32 w-full cursor-crosshair"
-      onMouseMove={handleMove} onMouseLeave={() => setHov(null)}>
-      {[0.5, 1].map((f) => (
-        <line key={f} x1="8" y1={H - 22 - f * (H - 36)} x2={W - 8} y2={H - 22 - f * (H - 36)}
-          stroke={dark ? "#222222" : "#f3f4f6"} strokeWidth="1" />
-      ))}
-      {safe.map((d, i) => {
-        const x = 10 + i * step;
-        const fullH = (d.orders / maxV) * (H - 36);
-        const h = drawn ? Math.max(fullH, d.orders > 0 ? 3 : 0) : 0;
-        const y = H - 22 - h;
-        return (
-          <rect key={i} x={x} y={y} width={bw} height={h} rx="3"
-            fill={hov === i ? "#ea580c" : "#f97316"}
-            style={{ transition: `height 600ms ease ${i * 20}ms, y 600ms ease ${i * 20}ms, fill 150ms` }} />
-        );
-      })}
-      {safe.map((d, i) => i % showEvery === 0 && (
-        <text key={i} x={10 + i * step + bw / 2} y={H - 4}
-          textAnchor="middle" fontSize="8" fill={hov === i ? (dark ? "#e5e7eb" : "#374151") : "#9ca3af"}
-          fontWeight={hov === i ? "700" : "400"}>{dayLabel(d.date)}</text>
-      ))}
-      {hov !== null && (
-        <g>
-          <rect x={Math.max(2, Math.min(W - 80, 10 + hov * step - 10))} y={H - 22 - (safe[hov].orders / maxV) * (H - 36) - 28}
-            width="72" height="22" rx="5" fill={dark ? "#2a2a2a" : "#0f172a"} />
-          <text x={Math.max(2, Math.min(W - 80, 10 + hov * step - 10)) + 36}
-            y={H - 22 - (safe[hov].orders / maxV) * (H - 36) - 12}
-            textAnchor="middle" fontSize="10" fontWeight="700" fill={dark ? "#f1f5f9" : "white"}>
-            {formatNum(safe[hov].orders)} orders
-          </text>
-        </g>
-      )}
-    </svg>
+    </div>
   );
 }
 
@@ -454,11 +640,13 @@ export default function Dashboard() {
   const load = useCallback(async (opts = {}) => {
     setLoading(true);
     setError(null);
+    const demo = buildDashboardAnalytics(range);
     try {
       const payload = await fetchAdminAnalytics({ range, fresh: opts.fresh });
-      setData(payload);
+      setData(mergeDashboardAnalytics(payload, demo));
     } catch (e) {
-      setError(e?.message || "Failed to load analytics");
+      setData(demo);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -468,16 +656,20 @@ export default function Dashboard() {
 
   /* ─── Stock report (separate lightweight fetch) ── */
   useEffect(() => {
+    const demo = buildDashboardStockReport();
     fetchAdminStockReport()
-      .then((r) => setStockReport(r))
-      .catch(() => setStockReport(null));
+      .then((r) => setStockReport(mergeDashboardStockReport(r, demo)))
+      .catch(() => setStockReport(demo));
   }, []);
 
   /* ─── Derived view models ── */
   const kpis               = data?.kpis;
   const totals             = data?.totals;
   const salesByMonth       = data?.salesByMonth       || [];
-  const salesByDay         = data?.salesByDay         || [];
+  const salesByDay         = useMemo(
+    () => fillSalesByDay(data?.salesByDay || [], data?.rangeDays ?? 30),
+    [data?.salesByDay, data?.rangeDays]
+  );
   const topProducts        = data?.topProducts        || [];
   const topCategories      = data?.topCategories      || [];
   const recentOrders       = data?.recentOrders       || [];
@@ -487,13 +679,25 @@ export default function Dashboard() {
   const cities             = data?.customerLocations?.cities    || [];
   const totalSampledOrders = data?.customerLocations?.sampledOrders || 0;
 
+  const sparkDayLabels = useMemo(() => {
+    const days = salesByDay || [];
+    const len = days.length;
+    return days.map((d) => {
+      if (!d?.date) return "";
+      const dt = new Date(d.date);
+      if (Number.isNaN(dt.getTime())) return "";
+      if (len <= 7) return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()];
+      return `${dt.getDate()}/${dt.getMonth() + 1}`;
+    });
+  }, [salesByDay]);
+
   const metricCards = useMemo(() => {
     if (!kpis) return [];
     return [
-      { key: "earnings",     label: "Total Earnings",    value: formatLkr(kpis.revenue?.value || 0, true),    delta: kpis.revenue?.delta     || 0, accent: "#f97316", pts: kpis.revenue?.spark  || [] },
-      { key: "orders",       label: "Total Orders",      value: formatNum(kpis.orders?.value  || 0),           delta: kpis.orders?.delta      || 0, accent: "#0f172a", pts: kpis.orders?.spark   || [] },
-      { key: "aov",          label: "Avg. Order Value",  value: formatLkr(kpis.aov?.value     || 0, true),    delta: kpis.aov?.delta         || 0, accent: "#7c3aed", pts: kpis.revenue?.spark  || [] },
-      { key: "newCustomers", label: "New Customers",     value: formatNum(kpis.newCustomers?.value || 0),     delta: kpis.newCustomers?.delta || 0, accent: "#2563eb", pts: kpis.orders?.spark   || [] },
+      { key: "earnings",     label: "Total Earnings",    value: formatLkr(kpis.revenue?.value || 0, true),    delta: kpis.revenue?.delta     || 0, accent: "#f97316", pts: kpis.revenue?.spark  || [], valueKind: "currency" },
+      { key: "orders",       label: "Total Orders",      value: formatNum(kpis.orders?.value  || 0),           delta: kpis.orders?.delta      || 0, accent: "#0f172a", pts: kpis.orders?.spark   || [], valueKind: "number" },
+      { key: "aov",          label: "Avg. Order Value",  value: formatLkr(kpis.aov?.value     || 0, true),    delta: kpis.aov?.delta         || 0, accent: "#7c3aed", pts: kpis.revenue?.spark  || [], valueKind: "currency" },
+      { key: "newCustomers", label: "New Customers",     value: formatNum(kpis.newCustomers?.value || 0),     delta: kpis.newCustomers?.delta || 0, accent: "#2563eb", pts: kpis.orders?.spark   || [], valueKind: "number" },
     ];
   }, [kpis]);
 
@@ -533,7 +737,7 @@ export default function Dashboard() {
 
   const activeDonutSegs  = statusTab === "status" ? statusDonutSegs : paymentDonutSegs;
   const topRegionMaxOrders = Math.max(1, ...provinces.map((p) => p.orders));
-  const currentRangeLabel  = RANGE_OPTIONS.find((r) => r.id === range)?.label;
+  const currentRangeLabel = RANGE_OPTIONS.find((r) => r.id === range)?.label;
   const greetingName = (typeof window !== "undefined" && window.__adminName) || "Orlando";
 
   /* Stock health */
@@ -542,37 +746,58 @@ export default function Dashboard() {
 
   /* ════════════════════════════════════════════════════ */
   return (
-    <div className="bg-[#fafbfc] px-6 py-7 lg:px-10 lg:py-10">
+    <div className="admin-dashboard-page min-w-0 bg-[#fafbfc]">
       <style>{`
         @keyframes lineDraw { to { stroke-dashoffset: 0; } }
         @keyframes fadeUp   { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
       `}</style>
 
-      {/* ── Header ── */}
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-[#0b1220]">Dashboard</h1>
-          <p className="mt-1 text-sm text-[#6b7280]">
-            Hello {greetingName}, welcome back!
-            {data?.generatedAt && <span className="ml-2 text-[#9ca3af]">· updated {timeAgo(data.generatedAt)}</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center rounded-full bg-white p-1 text-xs ring-1 ring-[#eceff3]">
-            {RANGE_OPTIONS.map((r) => (
-              <button key={r.id} type="button" onClick={() => setRange(r.id)}
-                className={`rounded-full px-3 py-1.5 font-medium transition ${
-                  range === r.id ? "bg-[#f97316] text-white shadow-sm" : "text-[#475467] hover:text-[#0b1220]"
-                }`}>{r.label}</button>
-            ))}
+      <header className="admin-dashboard-cover">
+        <div className="admin-dashboard-cover__inner">
+          <div className="admin-dashboard-cover__text">
+            <h1 className="admin-dashboard-cover__title">Dashboard</h1>
+            <p className="admin-dashboard-cover__sub">
+              Hello <span className="admin-dashboard-cover__name">{greetingName}</span>
+            </p>
           </div>
-          <button type="button" onClick={() => load({ fresh: true })} disabled={loading}
-            className="rounded-full bg-white px-3.5 py-2 text-xs font-medium text-[#475467] ring-1 ring-[#eceff3] transition hover:text-[#0b1220] disabled:opacity-50">
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-      </div>
 
+          <div className="admin-dashboard-cover__actions">
+            <div
+              className="admin-dashboard-cover__range"
+              role="group"
+              aria-label="Date range"
+            >
+              {RANGE_OPTIONS.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setRange(r.id)}
+                  aria-pressed={range === r.id}
+                  className={`admin-dashboard-cover__range-btn${range === r.id ? " is-active" : ""}`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => load({ fresh: true })}
+              disabled={loading}
+              className="admin-dashboard-cover__refresh"
+              aria-label={loading ? "Refreshing" : "Refresh data"}
+              title="Refresh"
+            >
+              <RefreshCw
+                className={`admin-dashboard-cover__refresh-icon${loading ? " is-spinning" : ""}`}
+                strokeWidth={2.2}
+                aria-hidden
+              />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="admin-dashboard-page__body px-4 pb-6 pt-5 sm:px-6 sm:pb-7 lg:px-10 lg:pb-10">
       {error && (
         <div className="mb-6 rounded-2xl border border-red-100 bg-red-50/70 px-4 py-3 text-sm text-red-700">
           {error}{" "}
@@ -581,16 +806,21 @@ export default function Dashboard() {
       )}
 
       {/* ── KPI row ── */}
-      <div className="mb-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
         {loading && !data
           ? Array.from({ length: 4 }).map((_, i) => <SkBlock key={i} h="h-[140px]" />)
-          : metricCards.map((m, ki) => (
-              <div key={m.key}
-                className="overflow-hidden rounded-2xl bg-white ring-1 ring-[#eceff3] transition hover:ring-[#e2e6ee]"
-                style={{ animation: `fadeUp 500ms ease ${ki * 70}ms both` }}>
-                <div className="flex items-center justify-between px-5 pt-5">
+          : metricCards.map((m, ki) => {
+              const sparkColor =
+                isDark && m.key === "orders" ? "#94a3b8" : m.accent;
+              return (
+              <div
+                key={m.key}
+                className="admin-kpi-card flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-[#eceff3] transition hover:ring-[#e2e6ee]"
+                style={{ animation: `fadeUp 500ms ease ${ki * 70}ms both` }}
+              >
+                <div className="flex items-start justify-between gap-2 px-4 pt-4 sm:px-5 sm:pt-5">
                   <KpiIconTile idx={ki} palette={KPI_PALETTE[isDark ? "dark" : "light"][ki]} />
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                     m.delta >= 0 ? "bg-[#ecfdf5] text-[#059669]" : "bg-[#fef2f2] text-[#dc2626]"
                   }`}>
                     <svg viewBox="0 0 24 24" className={`h-2.5 w-2.5 ${m.delta < 0 ? "rotate-180" : ""}`}
@@ -600,16 +830,28 @@ export default function Dashboard() {
                     {Math.abs(m.delta).toFixed(2)}%
                   </span>
                 </div>
-                <div className="px-5 pt-3">
+                <div className="min-w-0 flex-1 px-4 pb-1 pt-3 sm:px-5">
                   <p className="text-[11px] font-medium text-[#6b7280]">{m.label}</p>
-                  <p className="mt-0.5 text-[24px] font-semibold leading-none tracking-tight text-[#0b1220]">{m.value}</p>
+                  <p className="mt-1 text-xl font-semibold leading-none tracking-tight text-[#0b1220] sm:text-2xl">
+                    {m.value}
+                  </p>
                 </div>
-                {/* spark */}
-                <div className="mt-2 px-0 pb-0">
-                  <AreaSpark color={m.accent} points={m.pts} />
+                <div className="admin-kpi-spark mt-auto h-16 w-full min-w-0 touch-pan-x sm:h-14">
+                  <AreaSpark
+                    color={sparkColor}
+                    points={m.pts}
+                    labels={sparkDayLabels}
+                    dark={isDark}
+                    formatValue={
+                      m.valueKind === "number"
+                        ? (v) => formatNum(v)
+                        : (v) => formatLkr(v, true)
+                    }
+                  />
                 </div>
               </div>
-            ))}
+            );
+          })}
       </div>
 
       {/* ── Health strip ── */}
@@ -653,42 +895,50 @@ export default function Dashboard() {
       })()}
 
       {/* ── Charts row: Revenue hero + Status/Payment donut + Top sale ── */}
-      <div className="mb-8 grid gap-5 lg:grid-cols-[2fr_1fr_1fr]">
+      <div className="mb-8 grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
 
         {/* Revenue hero */}
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-[#eceff3]">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
+        <div className="min-w-0 overflow-hidden rounded-2xl bg-white p-4 ring-1 ring-[#eceff3] sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <p className="text-[12px] font-medium text-[#6b7280]">Total Revenue</p>
-              <p className="mt-1 text-[28px] font-semibold leading-none tracking-tight text-[#0b1220]">
+              <p className="mt-1 text-xl font-semibold leading-none tracking-tight text-[#0b1220] sm:text-[28px]">
                 {formatLkr(totalRangeRevenue, true)}
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-5 text-xs">
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#f97316]" />
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#f97316]" />
                   <span className="text-[#6b7280]">Revenue</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#0f172a]" />
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0f172a]" />
                   <span className="text-[#6b7280]">Orders</span>
                   <span className="font-semibold text-[#0b1220]">{formatNum(totalRangeOrders)}</span>
                 </span>
               </div>
             </div>
-            <span className="whitespace-nowrap rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-medium text-[#475467] ring-1 ring-[#eceff3]">
+            <span className="shrink-0 self-start rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-medium text-[#475467] ring-1 ring-[#eceff3]">
               Last 12 months
             </span>
           </div>
-          <div className="h-56">
+          <div className="min-h-[12rem] min-w-0 w-full">
             {salesByMonth.length
-              ? <BarLineChart bars={monthRevenue} line={monthOrders} months={monthLabels} dark={isDark} />
-              : loading ? <SkBlock h="h-full" />
-              : <p className="grid h-full place-items-center text-xs text-[#9ca3af]">No sales data yet.</p>}
+              ? (
+                <BarLineChart
+                  key={`rev-${range}-${salesByMonth.map((m) => m.key).join("-")}`}
+                  bars={monthRevenue}
+                  line={monthOrders}
+                  months={monthLabels}
+                  dark={isDark}
+                />
+              )
+              : loading ? <SkBlock h="h-48 sm:h-56" />
+              : <p className="grid h-48 place-items-center text-xs text-[#9ca3af] sm:h-56">No sales data yet.</p>}
           </div>
         </div>
 
         {/* Order Status / Payment Channel tabbed donut */}
-        <div className="rounded-2xl bg-white p-5 ring-1 ring-[#eceff3]">
+        <div className="min-w-0 overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-[#eceff3]">
           <div className="mb-3 flex items-center gap-1 rounded-lg bg-[#f8fafc] p-1">
             {[["status","Order Types"],["payment","Payment"]].map(([id, lbl]) => (
               <button key={id} type="button" onClick={() => setStatusTab(id)}
@@ -730,9 +980,9 @@ export default function Dashboard() {
         </div>
 
         {/* Top sale */}
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-[#eceff3]">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#0b1220]">Top sale</h3>
+        <div className="min-w-0 overflow-hidden rounded-2xl bg-white p-6 ring-1 ring-[#eceff3]">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h3 className="min-w-0 truncate text-sm font-semibold text-[#0b1220]">Top sale</h3>
             <Link to="/admin/products" className="text-[11px] font-semibold text-[#f97316] hover:underline">View all</Link>
           </div>
           <div className="space-y-3">
@@ -753,22 +1003,27 @@ export default function Dashboard() {
       </div>
 
       {/* ── Second row: Daily orders chart + Top categories + Stock health ── */}
-      <div className="mb-8 grid gap-5 lg:grid-cols-[2fr_1.2fr_0.8fr]">
+      <div className="mb-8 grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,0.8fr)]">
 
         {/* Daily orders bar chart */}
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-[#eceff3]">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-[#0b1220]">Orders Overview</h3>
-              <p className="text-xs text-[#6b7280]">{currentRangeLabel}</p>
+        <div className="min-w-0 overflow-hidden rounded-[28px] bg-white p-4 ring-1 ring-[#eceff3] sm:p-5">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold tracking-tight text-[#0b1220]">Orders Overview</h3>
+              <p className="mt-1 text-xs text-[#6b7280]">{currentRangeLabel}</p>
             </div>
-            <span className="rounded-full bg-[#fff1e6] px-2.5 py-1 text-[11px] font-semibold text-[#f97316]">
-              {formatNum(salesByDay.reduce((s, d) => s + (Number(d.orders) || 0), 0))} orders
-            </span>
+            <div className="flex flex-wrap gap-2">
+              <span className="shrink-0 rounded-full bg-[#fff7ed] px-3 py-1 text-[11px] font-semibold text-[#f97316] ring-1 ring-[#fed7aa]">
+                {formatNum(salesByDay.reduce((s, d) => s + (Number(d.orders) || 0), 0))} orders
+              </span>
+              <span className="shrink-0 rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-medium text-[#475467] ring-1 ring-[#e2e8f0]">
+                Live trend
+              </span>
+            </div>
           </div>
           {loading && !salesByDay.length
-            ? <SkBlock h="h-32" />
-            : <DailyBarsChart days={salesByDay} dark={isDark} />}
+            ? <SkBlock h="h-52 sm:h-56" />
+            : <OrdersOverviewChart days={salesByDay} dark={isDark} />}
         </div>
 
         {/* Top categories */}
@@ -849,11 +1104,11 @@ export default function Dashboard() {
       </div>
 
       {/* ── Bottom row: Recent orders (tabbed w/ reviews) + Customer locations ── */}
-      <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+      <div className="grid w-full min-w-0 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-stretch">
 
         {/* Tabbed: Recent orders / Recent reviews */}
-        <div className="rounded-2xl bg-white ring-1 ring-[#eceff3]">
-          <div className="flex items-center justify-between border-b border-[#f3f4f6] px-6 pt-4 pb-0">
+        <div className="flex min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-[#eceff3]">
+          <div className="flex shrink-0 items-center justify-between border-b border-[#f3f4f6] px-5 pt-4 pb-0 sm:px-6">
             <div className="flex items-center gap-1">
               {[["orders","Recent orders"],["reviews","New reviews"]].map(([id, lbl]) => (
                 <button key={id} type="button" onClick={() => setActivityTab(id)}
@@ -872,37 +1127,37 @@ export default function Dashboard() {
 
           {activityTab === "orders" ? (
             <>
-              <div className="overflow-x-auto">
+              <div className="min-w-0 flex-1 overflow-x-auto">
                 <table className="min-w-full text-left">
                   <thead>
                     <tr className="border-b border-[#f3f4f6] text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">
                       {["Order","Customer","Placed","Total","Status"].map((h) => (
-                        <th key={h} className="px-6 py-3">{h}</th>
+                        <th key={h} className="px-5 py-3 sm:px-6">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f9fafb]">
                     {loading && !recentOrders.length ? (
-                      <tr><td colSpan={5} className="px-6 py-4"><SkBlock h="h-24" /></td></tr>
+                      <tr><td colSpan={5} className="px-5 py-4 sm:px-6"><SkBlock h="h-24" /></td></tr>
                     ) : recentOrders.length ? (
                       recentOrders.map((o, idx) => {
                         const st = statusLabel(o);
                         return (
                           <tr key={o.id} className="text-sm text-[#374151] transition hover:bg-[#fafbfc]">
-                            <td className="px-6 py-3">
+                            <td className="px-5 py-3 sm:px-6">
                               <Link to={`/admin/orders/${o.id}`}
                                 className="flex items-center gap-2.5 font-medium text-[#111827] hover:text-[#f97316]">
                                 <Thumb idx={idx} alt={o.order_number} />
                                 <span>{o.order_number}</span>
                               </Link>
                             </td>
-                            <td className="px-6 py-3 text-[#6b7280]">
+                            <td className="px-5 py-3 sm:px-6 text-[#6b7280]">
                               {o.customer_name || "—"}
                               {o.customer_email && <p className="text-[11px] text-[#9ca3af]">{o.customer_email}</p>}
                             </td>
-                            <td className="px-6 py-3 text-[#6b7280]">{timeAgo(o.created_at)}</td>
-                            <td className="px-6 py-3 font-medium">{formatLkr(o.total_amount, true)}</td>
-                            <td className="px-6 py-3">
+                            <td className="px-5 py-3 sm:px-6 text-[#6b7280]">{timeAgo(o.created_at)}</td>
+                            <td className="px-5 py-3 sm:px-6 font-medium">{formatLkr(o.total_amount, true)}</td>
+                            <td className="px-5 py-3 sm:px-6">
                               <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${STATUS_STYLE[st] || "bg-gray-100 text-gray-600"}`}>
                                 {st}
                               </span>
@@ -911,12 +1166,12 @@ export default function Dashboard() {
                         );
                       })
                     ) : (
-                      <tr><td colSpan={5} className="px-6 py-10 text-center text-xs text-[#9ca3af]">No orders yet.</td></tr>
+                      <tr><td colSpan={5} className="px-5 py-10 text-center text-xs text-[#9ca3af] sm:px-6">No orders yet.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
-              <div className="flex items-center justify-between border-t border-[#f3f4f6] px-6 py-3 text-[11px] text-[#9ca3af]">
+              <div className="flex shrink-0 items-center justify-between border-t border-[#f3f4f6] px-5 py-3 text-[11px] text-[#9ca3af] sm:px-6">
                 <span>Showing {recentOrders.length} of {formatNum(totals?.ordersAllTime || 0)} total</span>
                 <div className="flex items-center gap-3">
                   {totals?.lowStock > 0 && (
@@ -935,7 +1190,7 @@ export default function Dashboard() {
                 <div className="p-6"><SkBlock h="h-32" /></div>
               ) : recentReviews.length ? (
                 recentReviews.map((rv) => (
-                  <div key={rv.id} className="flex items-start gap-4 px-6 py-4 transition hover:bg-[#fafbfc]">
+                  <div key={rv.id} className="flex items-start gap-4 px-5 py-4 transition hover:bg-[#fafbfc] sm:px-6">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f3f4f6] text-xs font-bold text-[#6b7280]">
                       {rv.product_id ? String(rv.product_id).slice(-2) : "?"}
                     </div>
@@ -956,9 +1211,9 @@ export default function Dashboard() {
                   </div>
                 ))
               ) : (
-                <p className="px-6 py-10 text-center text-xs text-[#9ca3af]">No reviews yet.</p>
+                <p className="px-5 py-10 text-center text-xs text-[#9ca3af] sm:px-6">No reviews yet.</p>
               )}
-              <div className="border-t border-[#f3f4f6] px-6 py-3 text-[11px] text-[#9ca3af]">
+              <div className="border-t border-[#f3f4f6] px-5 py-3 text-[11px] text-[#9ca3af] sm:px-6">
                 Showing {recentReviews.length} latest reviews ·{" "}
                 {totals?.pendingReviews > 0
                   ? <Link to="/admin/reviews?status=pending" className="text-[#f97316] hover:underline">{totals.pendingReviews} pending approval</Link>
@@ -969,11 +1224,12 @@ export default function Dashboard() {
         </div>
 
         {/* Customer Locations */}
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-[#eceff3]">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="flex min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-[#eceff3]">
+          <div className="flex shrink-0 items-center justify-between border-b border-[#f3f4f6] px-5 py-4 sm:px-6">
             <h3 className="text-sm font-semibold text-[#0b1220]">Customer Locations</h3>
             <span className="rounded-full bg-[#f8fafc] px-2.5 py-1 text-[11px] font-medium text-[#475467] ring-1 ring-[#eceff3]">Sri Lanka</span>
           </div>
+          <div className="flex min-h-0 flex-1 flex-col px-5 py-4 sm:px-6 sm:py-5">
           {loading && !provinces.length ? <SkBlock h="h-44" />
           : provinces.length ? (
             <>
@@ -1024,9 +1280,11 @@ export default function Dashboard() {
               )}
             </>
           ) : (
-            <p className="grid h-44 place-items-center text-center text-xs text-[#9ca3af]">No shipping locations captured yet.</p>
+            <p className="grid min-h-[11rem] flex-1 place-items-center text-center text-xs text-[#9ca3af]">No shipping locations captured yet.</p>
           )}
+          </div>
         </div>
+      </div>
       </div>
     </div>
   );

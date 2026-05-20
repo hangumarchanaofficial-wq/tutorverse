@@ -7,7 +7,8 @@ import {
   formatLkr, fmtDateTime,
 } from "../../admin/components/ui";
 import { orders as mockOrders } from "../../admin/data/mockData";
-import { fetchAdminOrder, updateAdminOrderStatus, downloadAdminInvoice } from "../../services/adminApi";
+import { resolveLineItemProductImage } from "../../lib/productImage";
+import { fetchAdminOrder, fetchAdminProducts, updateAdminOrderStatus, downloadAdminInvoice } from "../../services/adminApi";
 import { normalizeOrderPipelineStatus } from "../../lib/orderStatus";
 
 const LINE_ITEMS_PAGE_SIZE = 10;
@@ -64,19 +65,23 @@ function AdminOrderDetailSkeleton() {
           <Skeleton className="h-3 w-2 rounded-full" />
           <Skeleton className="h-3 w-28" />
         </div>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-8 w-44" />
-            <Skeleton className="h-9 w-9 rounded-lg" />
-            <Skeleton className="h-6 w-24 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-44" />
+              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-24 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-80 max-w-full" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2">
             <Skeleton className="h-10 w-24 rounded-lg" />
             <Skeleton className="h-10 w-28 rounded-lg" />
           </div>
         </div>
-        <Skeleton className="h-3 w-80 max-w-full" />
       </div>
 
       <SkeletonCard titleWidth="w-28">
@@ -177,8 +182,83 @@ function AdminOrderDetailSkeleton() {
   );
 }
 
-function normalizeMock(o) {
+function normalizeOrderItems(items = [], catalogByProductId = null) {
+  return items.map((it, idx) => {
+    const productId = it.product_id ?? it.productId;
+    const productTitle = it.product_title ?? it.name ?? "Product";
+    const qty = it.quantity ?? it.qty ?? 1;
+    const unitPrice = it.unit_price ?? it.price ?? 0;
+    const catalogProduct = catalogByProductId?.get(String(productId));
+    return {
+      id: it.id ?? idx,
+      product_id: productId,
+      product_title: productTitle,
+      product_image: resolveLineItemProductImage({
+        productId,
+        productTitle,
+        image: it.product_image ?? it.image ?? it.product_image_url,
+        catalogProduct,
+      }),
+      quantity: qty,
+      unit_price: unitPrice,
+      line_total: it.line_total ?? unitPrice * qty,
+      selected_size: it.selected_size ?? it.selectedSize ?? null,
+      selected_color: it.selected_color ?? it.selectedColor ?? null,
+    };
+  });
+}
+
+async function loadProductCatalogMap() {
+  try {
+    const res = await fetchAdminProducts({ limit: 500 });
+    const map = new Map();
+    for (const p of res?.items || []) {
+      map.set(String(p.id), p);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+async function normalizeAdminOrderAsync(o) {
+  const items = o.order_items ?? o.items ?? [];
+  const needsCatalog = items.some((it) => {
+    const img = it.product_image ?? it.image ?? it.product_image_url;
+    return !img;
+  });
+  const catalogByProductId = needsCatalog ? await loadProductCatalogMap() : null;
+  return normalizeAdminOrder(o, catalogByProductId);
+}
+
+function normalizeAdminOrder(o, catalogByProductId = null) {
+  const items = o.order_items ?? o.items ?? [];
   return {
+    ...o,
+    id: o.id,
+    order_number: o.order_number ?? o.orderNumber,
+    status: o.status ?? o.orderStatus,
+    payment_status: o.payment_status ?? o.paymentStatus,
+    payment_method: o.payment_method ?? o.paymentMethod,
+    customer_name: o.customer_name ?? o.customerName,
+    customer_email: o.customer_email ?? o.customerEmail,
+    customer_phone: o.customer_phone ?? o.customerPhone,
+    shipping_address: o.shipping_address ?? o.shippingAddress,
+    total_amount: o.total_amount ?? o.totalAmount,
+    subtotal_amount: o.subtotal_amount ?? o.subtotal,
+    discount_amount: o.discount_amount ?? o.discount,
+    shipping_amount: o.shipping_amount ?? o.shipping,
+    coupon_code: o.coupon_code ?? o.couponCode,
+    created_at: o.created_at ?? o.createdAt,
+    updated_at: o.updated_at ?? o.updatedAt,
+    order_items: normalizeOrderItems(items, catalogByProductId),
+    invoice_number: o.invoice_number ?? null,
+    shipping_payload: o.shipping_payload ?? {},
+  };
+}
+
+function normalizeMock(o) {
+  return normalizeAdminOrder({
     id: o.id,
     order_number: o.orderNumber,
     status: o.orderStatus,
@@ -195,20 +275,10 @@ function normalizeMock(o) {
     coupon_code: o.couponCode,
     created_at: o.createdAt,
     updated_at: o.updatedAt,
-    order_items: (o.items || []).map((it, idx) => ({
-      id: idx,
-      product_id: it.productId,
-      product_title: it.name,
-      product_image: it.image,
-      quantity: it.qty,
-      unit_price: it.price,
-      line_total: it.price * it.qty,
-      selected_size: null,
-      selected_color: null,
-    })),
+    items: o.items,
     invoice_number: null,
     shipping_payload: {},
-  };
+  });
 }
 
 export default function AdminOrderDetail() {
@@ -254,11 +324,13 @@ export default function AdminOrderDetail() {
     setLoading(true);
     setError("");
     fetchAdminOrder(id)
-      .then((data) => {
+      .then(async (data) => {
         if (!on) return;
         setIsMockOrder(false);
-        setOrder(data);
-        setStatus(normalizeOrderPipelineStatus(data.status || data.orderStatus || "PLACED"));
+        const normalized = await normalizeAdminOrderAsync(data);
+        if (!on) return;
+        setOrder(normalized);
+        setStatus(normalizeOrderPipelineStatus(normalized.status || "PLACED"));
       })
       .catch(() => {
         if (!on) return;
@@ -444,24 +516,34 @@ export default function AdminOrderDetail() {
             <span>/</span>
             <span className="text-[#f8fafc]">{orderNum}</span>
           </div>
-          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-[#f8fafc]">{orderNum}</h1>
-              <button
-                onClick={copyOrderNumber}
-                className="rounded-lg border border-[#263145] p-1.5 text-[#8b95a7] transition hover:bg-[#182238] hover:text-[#f8fafc]"
-                title="Copy order number"
-              >
-                {copied ? (
-                  <svg className="h-4 w-4 text-[#34d399]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                ) : (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                )}
-              </button>
-              <StatusBadge status={currentStatus} />
-              <StatusBadge status={order.payment_status || order.paymentStatus} />
+          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-[#f8fafc] whitespace-nowrap">{orderNum}</h1>
+                <button
+                  type="button"
+                  onClick={copyOrderNumber}
+                  className="shrink-0 rounded-lg border border-[#263145] p-1.5 text-[#8b95a7] transition hover:bg-[#182238] hover:text-[#f8fafc]"
+                  title="Copy order number"
+                >
+                  {copied ? (
+                    <svg className="h-4 w-4 text-[#34d399]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  ) : (
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  )}
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={currentStatus} />
+                <StatusBadge status={order.payment_status || order.paymentStatus} />
+              </div>
+              <p className="text-xs text-[#8b95a7]">
+                <span className="font-mono">ID {order.id}</span>
+                {(order.invoice_number) && <> · Invoice <span className="font-mono">{order.invoice_number}</span></>}
+                {(order.created_at || order.createdAt) && <> · Placed {fmtDateTime(order.created_at || order.createdAt)}</>}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 gap-2">
               <Btn variant="secondary" onClick={() => window.print()}>
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 Print
@@ -472,11 +554,6 @@ export default function AdminOrderDetail() {
               </Btn>
             </div>
           </div>
-          <p className="mt-1 text-xs text-[#8b95a7]">
-            <span className="font-mono">ID {order.id}</span>
-            {(order.invoice_number) && <> · Invoice <span className="font-mono">{order.invoice_number}</span></>}
-            {(order.created_at || order.createdAt) && <> · Placed {fmtDateTime(order.created_at || order.createdAt)}</>}
-          </p>
         </div>
 
         {/* Order Pipeline */}
@@ -486,8 +563,8 @@ export default function AdminOrderDetail() {
 
         {/* Status Update */}
         <Card title="Update Status" className="no-print">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="min-w-0 w-full flex-1 sm:min-w-[200px]">
               <Select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
@@ -497,6 +574,7 @@ export default function AdminOrderDetail() {
             <Btn
               variant="primary"
               size="md"
+              className="w-full sm:w-auto"
               disabled={saving || status === currentStatus}
               onClick={() => setShowConfirm(true)}
             >
@@ -582,36 +660,67 @@ export default function AdminOrderDetail() {
               {lineItems.length} item{lineItems.length !== 1 ? "s" : ""}
             </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+          {/* Mobile: compact rows (qty × unit price merged; SKU hidden on xs) */}
+          <ul className="divide-y divide-[#263145]/60 md:hidden">
+            {pagedLineItems.map((row) => (
+              <li key={row.id} className="flex gap-3 px-4 py-3 transition hover:bg-[#182238]/60">
+                <ProductThumbnail src={row.product_image} alt={row.product_title} size={44} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 text-sm font-medium leading-snug text-[#f8fafc]">{row.product_title}</p>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums text-[#f8fafc]">
+                      {formatLkr(row.line_total)}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-xs tabular-nums text-[#8b95a7]">
+                    Qty {row.quantity} × {formatLkr(row.unit_price)}
+                  </p>
+                  {(row.selected_size || row.selected_color) && (
+                    <p className="mt-0.5 text-xs text-[#8b95a7]">
+                      {[row.selected_size, row.selected_color].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                  <p className="mt-0.5 hidden font-mono text-[10px] text-[#8b95a7] sm:block">#{row.product_id}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop: full table */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="admin-table w-full text-left text-sm">
               <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
                 <tr>
-                  <th className="px-5 py-2.5">Product</th>
-                  <th className="px-5 py-2.5">Qty</th>
-                  <th className="px-5 py-2.5">Unit Price</th>
-                  <th className="px-5 py-2.5">Line Total</th>
+                  <th className="min-w-[220px] px-5 py-2.5 font-medium">Product</th>
+                  <th className="w-16 px-5 py-2.5 text-center font-medium">Qty</th>
+                  <th className="w-28 px-5 py-2.5 text-right font-medium whitespace-nowrap">Unit price</th>
+                  <th className="w-28 px-5 py-2.5 text-right font-medium whitespace-nowrap">Line total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#263145]/60">
                 {pagedLineItems.map((row) => (
-                  <tr key={row.id} className="transition hover:bg-[#182238]">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <ProductThumbnail src={row.product_image} alt={row.product_title} />
-                        <div>
-                          <span className="font-medium text-[#f8fafc]">{row.product_title}</span>
-                          <span className="ml-2 text-[11px] text-[#8b95a7]">#{row.product_id}</span>
+                  <tr key={row.id} className="transition hover:bg-[#182238]/60">
+                    <td className="px-5 py-3 align-middle">
+                      <div className="flex min-w-[200px] items-center gap-3">
+                        <ProductThumbnail src={row.product_image} alt={row.product_title} size={48} />
+                        <div className="min-w-0">
+                          <p className="font-medium leading-snug text-[#f8fafc]">{row.product_title}</p>
+                          <p className="mt-0.5 font-mono text-[11px] text-[#8b95a7]">#{row.product_id}</p>
                           {(row.selected_size || row.selected_color) && (
-                            <span className="mt-0.5 block text-xs text-[#8b95a7]">
+                            <p className="mt-0.5 text-xs text-[#8b95a7]">
                               {[row.selected_size, row.selected_color].filter(Boolean).join(" · ")}
-                            </span>
+                            </p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3 tabular-nums text-[#f8fafc]">{row.quantity}</td>
-                    <td className="px-5 py-3 tabular-nums text-[#8b95a7]">{formatLkr(row.unit_price)}</td>
-                    <td className="px-5 py-3 font-semibold tabular-nums text-[#f8fafc]">{formatLkr(row.line_total)}</td>
+                    <td className="px-5 py-3 align-middle text-center tabular-nums text-[#f8fafc]">{row.quantity}</td>
+                    <td className="px-5 py-3 align-middle text-right tabular-nums text-[#8b95a7] whitespace-nowrap">
+                      {formatLkr(row.unit_price)}
+                    </td>
+                    <td className="px-5 py-3 align-middle text-right font-semibold tabular-nums text-[#f8fafc] whitespace-nowrap">
+                      {formatLkr(row.line_total)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -619,7 +728,7 @@ export default function AdminOrderDetail() {
           </div>
 
           {lineItemsPaginated && (
-            <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="admin-table-pagination border-t border-[#263145]">
               <span className="text-xs font-medium text-[#8b95a7]">
                 Show data{" "}
                 <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">

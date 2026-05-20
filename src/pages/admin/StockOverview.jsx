@@ -176,7 +176,7 @@ export default function StockOverview({ filter }) {
 
         {/* Table */}
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <Tabs
               tabs={TABS.map((t) => ({
                 ...t,
@@ -192,7 +192,7 @@ export default function StockOverview({ filter }) {
               placeholder="Search product…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="!w-48"
+              className="min-w-0 w-full sm:!w-48"
             />
             <Btn variant="ghost" size="xs" onClick={() => setSortAsc((s) => !s)}>
               Stock: {sortAsc ? "Low→High" : "High→Low"}
@@ -250,7 +250,7 @@ export default function StockOverview({ filter }) {
             </div>
 
             {filtered.length > 10 && (
-              <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="admin-table-pagination border-t border-[#263145]">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-xs font-medium text-[#8b95a7]">
                     Show{" "}

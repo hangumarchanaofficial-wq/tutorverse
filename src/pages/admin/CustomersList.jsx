@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   CircleCheck,
   Crown,
   UserRoundPlus,
@@ -17,6 +21,7 @@ import {
   ActionMenu,
   EmptyState,
   Skeleton,
+  SkeletonRows,
   formatLkr,
   formatNum,
   timeAgo,
@@ -39,6 +44,21 @@ const FILTER_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
   { value: "repeat", label: "Established" },
+];
+
+const SHOW_OPTIONS = [10, 25, 50].map((n) => ({ value: String(n), label: String(n) }));
+
+const TABLE_COLUMNS = [
+  { key: "name", label: "Seller", align: "left" },
+  { key: null, label: "Email", align: "left" },
+  { key: null, label: "Phone", align: "left" },
+  { key: "ordersCount", label: "Sales", align: "right" },
+  { key: "totalSpent", label: "Total sales", align: "right" },
+  { key: null, label: "Avg sale", align: "right" },
+  { key: "lastOrder", label: "Last sale", align: "left" },
+  { key: null, label: "Status", align: "left" },
+  { key: "joinedAt", label: "Joined", align: "left" },
+  { key: null, label: "", align: "right" },
 ];
 
 /** Fallback initials — used if a portrait URL fails to load */
@@ -144,6 +164,8 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
   const [error, setError] = useState(null);
   const [usingMock, setUsingMock] = useState(false);
   const [details, setDetails] = useState({}); // sellerId -> { orders, reviews, loading, error }
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -278,6 +300,17 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
     return list;
   }, [sellers, sort, sortDir]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter, sort, sortDir, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   const toggleSort = (field) => {
     if (sort === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSort(field); setSortDir("desc"); }
@@ -292,8 +325,21 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
     });
   };
 
+  const sellerMenuItems = (c) => {
+    const isBlocked = blockedIds.has(c.id);
+    return [
+      { label: "View Details", onClick: () => handleExpand(c.id) },
+      { divider: true },
+      {
+        label: isBlocked ? "Unblock" : "Block",
+        danger: !isBlocked,
+        onClick: () => toggleBlock(c.id),
+      },
+    ];
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="admin-products-page space-y-6">
       <PageHeader
         title={pageTitle}
         subtitle={pageSubtitle ?? `${formatNum(sellers.length)} marketplace seller${sellers.length === 1 ? "" : "s"}`}
@@ -330,26 +376,30 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
       </div>
 
       {/* Search / Filter / Sort Controls */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 w-full flex-1 sm:max-w-xs">
           <Input
             placeholder="Search seller or shop name, email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select
-          label="Filter"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          options={FILTER_OPTIONS}
-        />
-        <Select
-          label="Sort by"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          options={SORT_OPTIONS}
-        />
+        <div className="w-full sm:w-44">
+          <Select
+            label="Filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            options={FILTER_OPTIONS}
+          />
+        </div>
+        <div className="w-full sm:w-44">
+          <Select
+            label="Sort by"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            options={SORT_OPTIONS}
+          />
+        </div>
         <Btn
           variant="ghost"
           size="xs"
@@ -359,36 +409,79 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
         </Btn>
       </div>
 
-      {/* Table */}
-      {loading && filtered.length === 0 ? (
-        <div className="space-y-2 rounded-xl border border-[#263145] bg-[#121b2e] p-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState title="No sellers found" description="Try adjusting your search or filter." />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#263145]">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-[#263145] bg-[#0f1726]">
-                {[
-                  { key: "name", label: "Seller" },
-                  { key: null, label: "Email" },
-                  { key: null, label: "Phone" },
-                  { key: "ordersCount", label: "Sales" },
-                  { key: "totalSpent", label: "Total sales" },
-                  { key: null, label: "Avg sale" },
-                  { key: "lastOrder", label: "Last sale" },
-                  { key: null, label: "Status" },
-                  { key: "joinedAt", label: "Joined" },
-                  { key: null, label: "" },
-                ].map((col, i) => (
+      <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
+        {/* Mobile: seller, totals, status, actions; expand for detail */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading && filtered.length === 0 ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="flex gap-3 px-4 py-3">
+                <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-32" />
+                  <Skeleton className="h-3 w-40" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              </li>
+            ))
+          ) : filtered.length === 0 ? (
+            <li className="px-4 py-14">
+              <EmptyState title="No sellers found" description="Try adjusting your search or filter." />
+            </li>
+          ) : (
+            paged.map((c) => {
+              const isBlocked = blockedIds.has(c.id);
+              const isOpen = expanded === c.id;
+              return (
+                <React.Fragment key={c.id}>
+                  <li
+                    className={`flex cursor-pointer gap-3 px-4 py-3 transition hover:bg-[#182238]/60 ${isOpen ? "bg-[#182238]/80" : ""}`}
+                    onClick={() => handleExpand(c.id)}
+                  >
+                    <SellerAvatar name={c.name} sellerId={c.id} photoUrl={c.photoUrl} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-[#f8fafc]" title={c.name}>
+                            {c.name}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-[#8b95a7]" title={c.storeName}>
+                            {c.storeName || c.role || "Marketplace user"}
+                          </p>
+                        </div>
+                        <StatusBadge status={isBlocked ? "inactive" : c.status} />
+                      </div>
+                      <p className="mt-1.5 text-xs text-[#8b95a7]">
+                        {c.ordersCount} sales
+                        {c.lastOrder ? ` · ${timeAgo(c.lastOrder)}` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
+                      <ActionMenu items={sellerMenuItems(c)} />
+                    </div>
+                  </li>
+                  {isOpen && (
+                    <li className="border-t border-[#263145]/60 bg-[#0f1726] px-4 py-4">
+                      <SellerDetail seller={c} detail={details[c.id]} />
+                    </li>
+                  )}
+                </React.Fragment>
+              );
+            })
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="admin-table min-w-[960px] w-full text-left text-sm">
+            <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
+              <tr>
+                {TABLE_COLUMNS.map((col, i) => (
                   <th
                     key={i}
                     onClick={col.key ? () => toggleSort(col.key) : undefined}
-                    className={`whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7] ${col.key ? "cursor-pointer select-none hover:text-[#f8fafc]" : ""}`}
+                    className={`align-middle whitespace-nowrap px-4 py-3 font-medium ${
+                      col.align === "right" ? "text-right" : "text-left"
+                    } ${col.key ? "cursor-pointer select-none hover:text-[#f8fafc]" : ""}`}
                   >
                     {col.label}
                     {col.key && sort === col.key && (
@@ -398,68 +491,181 @@ export default function CustomersList({ pageTitle = "All Sellers", pageSubtitle 
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {filtered.map((c) => {
-                const isBlocked = blockedIds.has(c.id);
-                const isOpen = expanded === c.id;
-                return (
-                  <React.Fragment key={c.id}>
-                    <tr
-                      onClick={() => handleExpand(c.id)}
-                      className={`border-b border-[#263145]/60 transition hover:bg-[#182238] ${isOpen ? "bg-[#182238]" : ""} cursor-pointer`}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <SellerAvatar name={c.name} sellerId={c.id} photoUrl={c.photoUrl} />
-                          <div className="min-w-0">
-                            <div className="font-medium text-[#f8fafc]">{c.name}</div>
-                            <div className="truncate text-xs text-[#8b95a7]">{c.storeName || c.role || "Marketplace user"}</div>
+            <tbody className="divide-y divide-[#263145]/60">
+              {loading && filtered.length === 0 ? (
+                <SkeletonRows rows={8} cols={10} />
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-14">
+                    <EmptyState title="No sellers found" description="Try adjusting your search or filter." />
+                  </td>
+                </tr>
+              ) : (
+                paged.map((c) => {
+                  const isBlocked = blockedIds.has(c.id);
+                  const isOpen = expanded === c.id;
+                  return (
+                    <React.Fragment key={c.id}>
+                      <tr
+                        onClick={() => handleExpand(c.id)}
+                        className={`cursor-pointer transition hover:bg-[#182238]/60 ${isOpen ? "bg-[#182238]/80" : ""}`}
+                      >
+                        <td className="align-middle px-4 py-3">
+                          <div className="flex min-w-0 max-w-[240px] items-center gap-3">
+                            <SellerAvatar name={c.name} sellerId={c.id} photoUrl={c.photoUrl} />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-[#f8fafc]" title={c.name}>
+                                {c.name}
+                              </p>
+                              <p className="truncate text-xs text-[#8b95a7]" title={c.storeName}>
+                                {c.storeName || c.role || "Marketplace user"}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[#8b95a7]">{c.email || "—"}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-[#8b95a7]">{c.phone || "—"}</td>
-                      <td className="px-4 py-3 tabular-nums text-[#f8fafc]">{c.ordersCount}</td>
-                      <td className="px-4 py-3 tabular-nums text-[#f8fafc]">{formatLkr(c.totalSpent)}</td>
-                      <td className="px-4 py-3 tabular-nums text-[#8b95a7]">{formatLkr(c.avgOrderValue)}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-[#8b95a7]">{c.lastOrder ? timeAgo(c.lastOrder) : "—"}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={isBlocked ? "inactive" : c.status} />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-[#8b95a7]">{fmtDate(c.joinedAt)}</td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <ActionMenu
-                          items={[
-                            { label: "View Details", onClick: () => handleExpand(c.id) },
-                            { divider: true },
-                            {
-                              label: isBlocked ? "Unblock" : "Block",
-                              danger: !isBlocked,
-                              onClick: () => toggleBlock(c.id),
-                            },
-                          ]}
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Expanded Detail Row */}
-                    {isOpen && (
-                      <tr className="bg-[#0f1726]">
-                        <td colSpan={10} className="px-6 py-5">
-                          <SellerDetail
-                            seller={c}
-                            detail={details[c.id]}
-                          />
+                        </td>
+                        <td className="align-middle max-w-[180px] px-4 py-3">
+                          <span className="block truncate text-[#8b95a7]" title={c.email}>
+                            {c.email || "—"}
+                          </span>
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3 text-[#8b95a7]">
+                          {c.phone || "—"}
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#f8fafc]">
+                          {c.ordersCount}
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-[#f8fafc]">
+                          {formatLkr(c.totalSpent)}
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#8b95a7]">
+                          {formatLkr(c.avgOrderValue)}
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3 text-[#8b95a7]">
+                          {c.lastOrder ? timeAgo(c.lastOrder) : "—"}
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3">
+                          <StatusBadge status={isBlocked ? "inactive" : c.status} />
+                        </td>
+                        <td className="align-middle whitespace-nowrap px-4 py-3 text-[#8b95a7]">
+                          {fmtDate(c.joinedAt)}
+                        </td>
+                        <td className="align-middle px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end">
+                            <ActionMenu items={sellerMenuItems(c)} />
+                          </div>
                         </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                      {isOpen && (
+                        <tr className="bg-[#0f1726]">
+                          <td colSpan={10} className="px-6 py-5">
+                            <SellerDetail seller={c} detail={details[c.id]} />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
-      )}
+
+        {!loading && filtered.length > pageSize && (
+          <div className="admin-table-pagination border-t border-[#263145]">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <span className="text-xs font-medium text-[#8b95a7]">
+                Show data{" "}
+                <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+                of {filtered.length}
+              </span>
+              <div className="w-20">
+                <Select
+                  value={String(pageSize)}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  options={SHOW_OPTIONS}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(() => {
+                const navItems =
+                  totalPages <= 5
+                    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+                    : page <= 3
+                      ? [1, 2, 3, "end-gap", totalPages]
+                      : page >= totalPages - 2
+                        ? [1, "start-gap", totalPages - 2, totalPages - 1, totalPages]
+                        : [1, "start-gap", page - 1, page, page + 1, "end-gap", totalPages];
+
+                const navButtonClass =
+                  "flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+                const ghostStyle =
+                  "border-[#263145] bg-[#0f1726] text-[#8b95a7] shadow-sm hover:border-[#d8b84f]/50 hover:bg-[#182238] hover:text-[#f8fafc]";
+                const activeStyle =
+                  "border-[#d8b84f] bg-[#d8b84f] text-[#070b14] shadow-[0_8px_18px_rgba(216,184,79,0.24)]";
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="First page"
+                      disabled={page <= 1}
+                      onClick={() => setPage(1)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Previous page"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    {navItems.map((item) =>
+                      typeof item === "number" ? (
+                        <button
+                          key={item}
+                          type="button"
+                          aria-label={`Page ${item}`}
+                          onClick={() => setPage(item)}
+                          className={`${navButtonClass} ${item === page ? activeStyle : ghostStyle}`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={item} className="px-1 text-sm font-semibold text-[#8b95a7]">
+                          …
+                        </span>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Next page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Last page"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage(totalPages)}
+                      className={`${navButtonClass} ${ghostStyle}`}
+                    >
+                      <ChevronsRight className="h-4 w-4" strokeWidth={2.4} />
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -22,11 +22,13 @@ import {
   ReturnPipelineSummary,
   Skeleton,
   SkeletonRows,
+  ProductThumbnail,
   useToast,
   formatLkr,
   fmtDate,
 } from "../../admin/components/ui";
 import { returns as mockReturns } from "../../admin/data/mockData";
+import { resolveLineItemProductImage } from "../../lib/productImage";
 import {
   RETURN_FILTER_STATUSES,
   normalizeReturnStatus,
@@ -74,6 +76,10 @@ export default function ReturnsList() {
           mockReturns.map((r) => ({
             ...r,
             status: normalizeReturnStatus(r.status),
+            productImage: resolveLineItemProductImage({
+              productId: r.productId,
+              productTitle: r.productName,
+            }),
           }))
         );
         setLoading(false);
@@ -182,6 +188,65 @@ export default function ReturnsList() {
     toast?.(`Return ${id} updated to ${newStatus.replace(/_/g, " ")}`);
   };
 
+  const buildReturnMenuItems = (r, status) => [
+    {
+      label: "Approve",
+      onClick: () =>
+        confirmAction("Approve Return", `Approve return ${r.id}?`, () => updateStatus(r.id, "APPROVED")),
+      disabled: !canTransition(status, "APPROVED"),
+    },
+    {
+      label: "Reject",
+      danger: true,
+      onClick: () =>
+        confirmAction(
+          "Reject Return",
+          `Reject return ${r.id}? The customer will be notified.`,
+          () => updateStatus(r.id, "REJECTED")
+        ),
+      disabled: !canTransition(status, "REJECTED"),
+    },
+    { divider: true },
+    {
+      label: "Mark received",
+      onClick: () =>
+        confirmAction("Mark Received", `Mark return ${r.id} as received?`, () =>
+          updateStatus(r.id, "RETURN_RECEIVED")
+        ),
+      disabled: !canTransition(status, "RETURN_RECEIVED"),
+    },
+    {
+      label: "Mark inspected",
+      onClick: () =>
+        confirmAction("Mark Inspected", `Mark return ${r.id} as inspected?`, () =>
+          updateStatus(r.id, "INSPECTED")
+        ),
+      disabled: !canTransition(status, "INSPECTED"),
+    },
+    {
+      label: "Issue refund",
+      onClick: () =>
+        confirmAction(
+          "Issue Refund",
+          `Issue ${formatLkr(r.refundAmount)} refund for ${r.id}? Refund will be sent to the original payment method after inspection.`,
+          () => updateStatus(r.id, "REFUNDED")
+        ),
+      disabled: !canTransition(status, "REFUNDED"),
+    },
+    { divider: true },
+    {
+      label: "Restock item",
+      onClick: () => toast?.(`${r.productName} restocked`),
+    },
+  ];
+
+  const productImageFor = (r) =>
+    resolveLineItemProductImage({
+      productId: r.productId,
+      productTitle: r.productName,
+      image: r.productImage ?? r.image,
+    });
+
   const statusOptions = RETURN_FILTER_STATUSES.map((s) => ({
     value: s,
     label:
@@ -265,8 +330,8 @@ export default function ReturnsList() {
         />
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[220px] flex-1 max-w-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-0 w-full flex-1 sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
           <Input
             className="pl-9"
@@ -275,7 +340,7 @@ export default function ReturnsList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Select
             label="Status"
             value={statusFilter}
@@ -286,14 +351,63 @@ export default function ReturnsList() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-        <div className="overflow-x-auto">
+        {/* Mobile: return id, product + image, status, refund, actions */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="flex gap-3 px-4 py-3">
+                <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-16" />
+                  <Skeleton className="h-3 w-full max-w-[180px]" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </li>
+            ))
+          ) : paged.length === 0 ? (
+            <li className="px-4 py-14 text-center">
+              <p className="text-sm font-medium text-[#f8fafc]">No returns match your filters</p>
+              <p className="mt-1 text-xs text-[#8b95a7]">Try a different status or clear the search.</p>
+            </li>
+          ) : (
+            paged.map((r) => {
+              const status = normalizeReturnStatus(r.status);
+              return (
+                <li key={r.id} className="flex gap-3 px-4 py-3 transition hover:bg-[#182238]/60">
+                  <ProductThumbnail src={productImageFor(r)} alt={r.productName} size={44} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs font-semibold text-[#d8b84f]">{r.id}</p>
+                        <p className="mt-0.5 truncate text-sm font-medium text-[#f8fafc]">{r.productName}</p>
+                        <p className="mt-0.5 truncate text-xs text-[#8b95a7]">{r.customerName}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <StatusBadge status={status} />
+                        <p className="text-xs font-semibold tabular-nums text-[#f8fafc]">
+                          {formatLkr(r.refundAmount)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="shrink-0 self-center">
+                    <ActionMenu items={buildReturnMenuItems(r, status)} />
+                  </div>
+                </li>
+              );
+            })
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="admin-table min-w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
                 <th className="px-4 py-3 font-medium">Return ID</th>
                 <th className="px-4 py-3 font-medium">Order</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Product</th>
+                <th className="min-w-[200px] px-4 py-3 font-medium">Product</th>
                 <th className="px-4 py-3 font-medium">Reason</th>
                 <th className="px-4 py-3 font-medium">Condition</th>
                 <th className="px-4 py-3 font-medium">Refund</th>
@@ -316,7 +430,7 @@ export default function ReturnsList() {
                 paged.map((r) => {
                   const status = normalizeReturnStatus(r.status);
                   return (
-                    <tr key={r.id} className="transition">
+                    <tr key={r.id} className="transition hover:bg-[#182238]/60">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-[#d8b84f]">
                         {r.id}
                       </td>
@@ -329,8 +443,13 @@ export default function ReturnsList() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 font-medium text-[#f8fafc]">{r.customerName}</td>
-                      <td className="max-w-[180px] truncate px-4 py-3 text-[#f8fafc]" title={r.productName}>
-                        {r.productName}
+                      <td className="px-4 py-3">
+                        <div className="flex min-w-0 max-w-[220px] items-center gap-3">
+                          <ProductThumbnail src={productImageFor(r)} alt={r.productName} size={40} />
+                          <span className="truncate font-medium text-[#f8fafc]" title={r.productName}>
+                            {r.productName}
+                          </span>
+                        </div>
                       </td>
                       <td className="max-w-[160px] truncate px-4 py-3 text-[#8b95a7]" title={r.reason}>
                         {r.reason}
@@ -348,61 +467,7 @@ export default function ReturnsList() {
                         {fmtDate(r.requestedAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <ActionMenu
-                          items={[
-                            {
-                              label: "Approve",
-                              onClick: () =>
-                                confirmAction("Approve Return", `Approve return ${r.id}?`, () =>
-                                  updateStatus(r.id, "APPROVED")
-                                ),
-                              disabled: !canTransition(status, "APPROVED"),
-                            },
-                            {
-                              label: "Reject",
-                              danger: true,
-                              onClick: () =>
-                                confirmAction(
-                                  "Reject Return",
-                                  `Reject return ${r.id}? The customer will be notified.`,
-                                  () => updateStatus(r.id, "REJECTED")
-                                ),
-                              disabled: !canTransition(status, "REJECTED"),
-                            },
-                            { divider: true },
-                            {
-                              label: "Mark received",
-                              onClick: () =>
-                                confirmAction("Mark Received", `Mark return ${r.id} as received?`, () =>
-                                  updateStatus(r.id, "RETURN_RECEIVED")
-                                ),
-                              disabled: !canTransition(status, "RETURN_RECEIVED"),
-                            },
-                            {
-                              label: "Mark inspected",
-                              onClick: () =>
-                                confirmAction("Mark Inspected", `Mark return ${r.id} as inspected?`, () =>
-                                  updateStatus(r.id, "INSPECTED")
-                                ),
-                              disabled: !canTransition(status, "INSPECTED"),
-                            },
-                            {
-                              label: "Issue refund",
-                              onClick: () =>
-                                confirmAction(
-                                  "Issue Refund",
-                                  `Issue ${formatLkr(r.refundAmount)} refund for ${r.id}? Refund will be sent to the original payment method after inspection.`,
-                                  () => updateStatus(r.id, "REFUNDED")
-                                ),
-                              disabled: !canTransition(status, "REFUNDED"),
-                            },
-                            { divider: true },
-                            {
-                              label: "Restock item",
-                              onClick: () => toast?.(`${r.productName} restocked`),
-                            },
-                          ]}
-                        />
+                        <ActionMenu items={buildReturnMenuItems(r, status)} />
                       </td>
                     </tr>
                   );
@@ -413,7 +478,7 @@ export default function ReturnsList() {
         </div>
 
         {!loading && filtered.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="admin-table-pagination border-t border-[#263145]">
             <span className="text-xs font-medium text-[#8b95a7]">
               Show data{" "}
               <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

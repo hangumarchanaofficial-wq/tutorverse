@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import { notifications as mockNotifs, inboxUnreadBadgeCount } from "./data/mockData";
 import { readInboxState, getUnreadCount, INBOX_UPDATED } from "./inbox/inboxSession";
 import "./admin-theme.css";
+import AdminFooter from "./components/AdminFooter";
+import { AdminProfileAvatar, adminDisplayName } from "./utils/avatars";
 
 // ─── SVG icon helper ───
 const I = ({ d, size = 18 }) => (
@@ -167,6 +169,7 @@ function AdminLayout() {
   const location = useLocation();
   const [inboxUnread, setInboxUnread] = useState(initialInboxUnread);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [theme, setTheme] = useState("light");
   const [productNavOpen, setProductNavOpen] = useState(() => location.pathname.startsWith("/admin/products"));
@@ -184,6 +187,11 @@ function AdminLayout() {
     localStorage.setItem("admin-theme", theme);
     document.documentElement.setAttribute("data-admin-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+    setMobileSearchOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (location.pathname.startsWith("/admin/products")) setProductNavOpen(true);
@@ -475,34 +483,47 @@ function AdminLayout() {
       {/* Main */}
       <div className="admin-main flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
-        <header className="admin-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-[#eceff3] bg-white px-4 lg:px-6">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] lg:hidden"
-              aria-label="Open menu"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h18M3 12h18M3 18h18" />
-              </svg>
-            </button>
-            <div className="relative w-[420px] sm:w-[560px]">
-              <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#98a2b3]" fill="none" stroke="currentColor" strokeWidth="1.9">
-                <circle cx="11" cy="11" r="6" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search"
-                className="h-9 w-full rounded-md border border-[#eef0f2] bg-[#f7f8fa] pl-9 pr-2 text-sm text-[#344054] outline-none placeholder:text-[#98a2b3] focus:border-[#d0d5dd]"
-              />
+        <header className="admin-topbar sticky top-0 z-30 shrink-0 border-b border-[#eceff3] bg-white">
+          <div className="flex h-16 items-center justify-between gap-2 px-4 lg:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] lg:hidden"
+                aria-label="Open menu"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen((v) => !v)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] md:hidden"
+                aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+                aria-expanded={mobileSearchOpen}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+              </button>
+              <div className="relative hidden min-w-0 flex-1 md:block md:max-w-md lg:max-w-xl">
+                <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#98a2b3]" fill="none" stroke="currentColor" strokeWidth="1.9">
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search"
+                  className="h-9 w-full min-w-0 rounded-md border border-[#eef0f2] bg-[#f7f8fa] pl-9 pr-2 text-sm text-[#344054] outline-none placeholder:text-[#98a2b3] focus:border-[#d0d5dd]"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#667085] hover:bg-[#f3f4f6]"
@@ -525,17 +546,40 @@ function AdminLayout() {
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 1 1-6 0" /></svg>
               {unreadCount > 0 && <span className="absolute right-[5px] top-[5px] h-1.5 w-1.5 rounded-full bg-[#f04438]" />}
             </Link>
-            <div className="mx-2 h-5 w-px bg-[#eaecf0]" />
+            <div className="mx-1 hidden h-5 w-px bg-[#eaecf0] sm:block" />
             <div className="flex items-center gap-2 pr-1">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fde8d8] text-xs font-bold text-[#c2410c]">
-                {(user?.email || "A")[0].toUpperCase()}
-              </div>
+              <AdminProfileAvatar
+                user={user}
+                size="sm"
+                className="ring-2 ring-[#d8b84f]/30"
+              />
               <div className="hidden leading-tight sm:block">
-                <p className="text-sm font-semibold text-[#101828]">{user?.name || "Kristin Watson"}</p>
+                <p className="text-sm font-semibold text-[#101828]">
+                  {adminDisplayName(user) === "Admin" && !user ? "Kristin Watson" : adminDisplayName(user)}
+                </p>
                 <p className="text-xs text-[#98a2b3]">{adminBypass && !user ? "Dev Admin" : "Sale Administrator"}</p>
               </div>
             </div>
           </div>
+          </div>
+          {mobileSearchOpen && (
+            <div className="border-t border-[#eef0f2] px-4 py-2 md:hidden">
+              <div className="relative">
+                <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#98a2b3]" fill="none" stroke="currentColor" strokeWidth="1.9">
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search admin…"
+                  autoFocus
+                  className="h-9 w-full rounded-md border border-[#eef0f2] bg-[#f7f8fa] pl-9 pr-2 text-sm text-[#344054] outline-none placeholder:text-[#98a2b3] focus:border-[#d0d5dd]"
+                />
+              </div>
+            </div>
+          )}
         </header>
 
         {/* Content */}
@@ -543,26 +587,7 @@ function AdminLayout() {
           <Outlet />
         </main>
 
-        {/* Footer */}
-        <footer className="admin-footer shrink-0 border-t border-[#263145] bg-[#0f1726]/80 px-4 py-3 lg:px-6">
-          <div className="flex flex-col items-center justify-between gap-2 sm:flex-row">
-            <p className="text-[11px] text-[#8b95a7]">
-              &copy; {new Date().getFullYear()} <span className="font-semibold text-[#d8b84f]">TwoWay Ceylon</span>. All rights reserved.
-            </p>
-            <div className="flex items-center gap-4 text-[11px] text-[#8b95a7]">
-              <span>v1.0.0</span>
-              <span className="h-3 w-px bg-[#263145]" />
-              <a href="/admin/health" className="transition hover:text-[#f8fafc]">System Health</a>
-              <span className="h-3 w-px bg-[#263145]" />
-              <a href="/admin/settings" className="transition hover:text-[#f8fafc]">Settings</a>
-              <span className="h-3 w-px bg-[#263145]" />
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#34d399] animate-pulse" />
-                Operational
-              </span>
-            </div>
-          </div>
-        </footer>
+        <AdminFooter />
       </div>
     </div>
   );

@@ -18,10 +18,12 @@ import {
   Btn,
   ConfirmDialog,
   ProductThumbnail,
+  Skeleton,
   SkeletonRows,
   useToast,
 } from "../../admin/components/ui";
 import { products as mockProducts } from "../../admin/data/mockData";
+import { resolveProductImageUrl } from "../../lib/productImage";
 import { loadCategoriesWithFallback } from "../../admin/utils/categories";
 import { deleteAdminCategory } from "../../services/adminApi";
 
@@ -140,6 +142,34 @@ export default function CategoriesList() {
     setDeleteTarget(null);
   };
 
+  const renderCategoryActions = (row) => (
+    <div className="flex gap-1">
+      <button
+        type="button"
+        onClick={() => toast?.(`Viewing ${row.name}`)}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#263145] text-[#d8b84f] transition hover:border-[#d8b84f]/50 hover:bg-[#182238]"
+        aria-label={`View ${row.name}`}
+      >
+        <Eye className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+      <Link
+        to="/admin/categories/new"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#263145] text-[#34d399] transition hover:border-[#34d399]/50 hover:bg-[#182238]"
+        aria-label={`Edit ${row.name}`}
+      >
+        <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </Link>
+      <button
+        type="button"
+        onClick={() => setDeleteTarget(row)}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#263145] text-[#f87171] transition hover:border-[#f87171]/50 hover:bg-[#182238]"
+        aria-label={`Delete ${row.name}`}
+      >
+        <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="admin-products-page space-y-6">
       <ConfirmDialog
@@ -166,7 +196,7 @@ export default function CategoriesList() {
       />
 
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-        <div className="admin-filterbar flex flex-wrap items-end gap-3 border-b border-[#263145] px-4 py-4">
+        <div className="admin-filterbar flex flex-col gap-3 border-b border-[#263145] px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="w-28">
             <Select
               label="Show"
@@ -177,7 +207,7 @@ export default function CategoriesList() {
           </div>
           <span className="hidden pb-2 text-xs text-[#8b95a7] sm:inline">entries</span>
 
-          <div className="relative min-w-[200px] flex-1 max-w-md self-end">
+          <div className="relative min-w-0 w-full flex-1 sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
             <Input
               className="pl-9"
@@ -196,7 +226,47 @@ export default function CategoriesList() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile: category image, name, product count, actions */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading ? (
+            Array.from({ length: 5 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-3">
+                <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-8 w-[104px] shrink-0 rounded-lg" />
+              </li>
+            ))
+          ) : filtered.length === 0 ? (
+            <li className="px-4 py-14 text-center">
+              <p className="text-sm font-medium text-[#f8fafc]">No categories match your filters</p>
+              <p className="mt-1 text-xs text-[#8b95a7]">Try another status or clear the search.</p>
+            </li>
+          ) : (
+            paged.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center gap-3 px-4 py-3 transition hover:bg-[#182238]/60"
+              >
+                <ProductThumbnail src={resolveProductImageUrl(row.thumb)} alt={row.name} size={44} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-[#f8fafc]" title={row.name}>
+                    {row.name}
+                  </p>
+                  <p className="mt-0.5 text-xs text-[#8b95a7]">
+                    {row.productCount ?? 0} product{(row.productCount ?? 0) !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="shrink-0 self-center">{renderCategoryActions(row)}</div>
+              </li>
+            ))
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="admin-table min-w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
@@ -219,10 +289,10 @@ export default function CategoriesList() {
                 </tr>
               ) : (
                 paged.map((row) => (
-                  <tr key={row.id} className="transition">
+                  <tr key={row.id} className="transition hover:bg-[#182238]/60">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <ProductThumbnail src={row.thumb} alt={row.name} size={40} />
+                        <ProductThumbnail src={resolveProductImageUrl(row.thumb)} alt={row.name} size={40} />
                         <p className="font-medium text-[#f8fafc]" title={row.name}>
                           {row.name}
                         </p>
@@ -232,31 +302,7 @@ export default function CategoriesList() {
                     <td className="px-4 py-3 tabular-nums text-[#e5e7eb]">{row.sale || 0}</td>
                     <td className="px-4 py-3 text-[#c1c7d0]">{fmtDateShort(row.date)}</td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => toast?.(`Viewing ${row.name}`)}
-                          className="rounded-lg p-1.5 text-[#d8b84f] transition hover:bg-[#182238]"
-                          aria-label={`View ${row.name}`}
-                        >
-                          <Eye className="h-4 w-4" strokeWidth={2.2} />
-                        </button>
-                        <Link
-                          to="/admin/categories/new"
-                          className="rounded-lg p-1.5 text-[#34d399] transition hover:bg-[#182238]"
-                          aria-label={`Edit ${row.name}`}
-                        >
-                          <Pencil className="h-4 w-4" strokeWidth={2.2} />
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(row)}
-                          className="rounded-lg p-1.5 text-[#f87171] transition hover:bg-[#182238]"
-                          aria-label={`Delete ${row.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" strokeWidth={2.2} />
-                        </button>
-                      </div>
+                      <div className="flex justify-end">{renderCategoryActions(row)}</div>
                     </td>
                   </tr>
                 ))
@@ -265,8 +311,8 @@ export default function CategoriesList() {
           </table>
         </div>
 
-        {!loading && filtered.length > 10 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        {!loading && filtered.length > pageSize && (
+          <div className="admin-table-pagination border-t border-[#263145]">
             <span className="text-xs font-medium text-[#8b95a7]">
               Show data{" "}
               <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

@@ -38,24 +38,22 @@ export default function AdminUserForm() {
 
   return (
     <div className="admin-products-page admin-seller-form space-y-6">
-      <div className="admin-seller-form__toolbar sticky top-0 z-20 -mx-4 border-b border-[#263145] bg-[#121b2e]/95 px-4 py-4 backdrop-blur-sm lg:-mx-6 lg:px-6">
-        <PageHeader
-          title="Add Seller"
-          subtitle="Dashboard · Sellers · Add Seller"
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to="/admin/users">
-                <Btn variant="secondary" size="md">
-                  Cancel
-                </Btn>
-              </Link>
-              <Btn variant="primary" size="md" type="submit" form="seller-form" disabled={saving}>
-                {saving ? "Saving…" : "Save seller"}
+      <PageHeader
+        title="Add Seller"
+        subtitle="Dashboard · Sellers · Add Seller"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/admin/users">
+              <Btn variant="secondary" size="md">
+                Cancel
               </Btn>
-            </div>
-          }
-        />
-      </div>
+            </Link>
+            <Btn variant="primary" size="md" type="submit" form="seller-form" disabled={saving}>
+              {saving ? "Saving…" : "Save seller"}
+            </Btn>
+          </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <form id="seller-form" onSubmit={onSubmit} className={`${panelCls} flex flex-col space-y-5`}>
@@ -97,12 +95,12 @@ export default function AdminUserForm() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 border-t border-[#263145] pt-5">
-            <Btn variant="primary" type="submit" size="md" disabled={saving}>
+          <div className="flex flex-col gap-3 border-t border-[#263145] pt-5 sm:flex-row sm:flex-wrap">
+            <Btn variant="primary" type="submit" size="md" className="w-full sm:w-auto" disabled={saving}>
               {saving ? "Saving…" : "Create seller"}
             </Btn>
-            <Link to="/admin/users">
-              <Btn variant="secondary" size="md">
+            <Link to="/admin/users" className="w-full sm:w-auto">
+              <Btn variant="secondary" size="md" className="w-full sm:w-auto">
                 Cancel
               </Btn>
             </Link>

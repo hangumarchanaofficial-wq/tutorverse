@@ -6,6 +6,7 @@ import {
   Banknote,
   CheckCircle,
   Inbox,
+  Package,
   PackageCheck,
   PackageOpen,
   RotateCw,
@@ -15,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { normalizeOrderPipelineStatus, ORDER_PIPELINE } from "../../lib/orderStatus";
+import { resolveProductImageUrl } from "../../lib/productImage";
 import { RETURN_TERMINAL_REJECTED } from "../../lib/returnStatus";
 
 // ─── Color Tokens (used as Tailwind arbitrary values) ───
@@ -215,13 +217,14 @@ export function SkeletonRows({ rows = 5, cols = 6 }) {
 // ─── Tabs ───
 export function Tabs({ tabs, activeTab, onChange }) {
   return (
-    <div className="flex gap-1 rounded-lg border border-[#263145] bg-[#0f1726] p-1">
+    <div className="admin-scroll-tabs -mx-1 overflow-x-auto px-1">
+      <div className="flex min-w-max gap-1 rounded-lg border border-[#263145] bg-[#0f1726] p-1">
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
-          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition ${
             activeTab === t.id ? "bg-[#d8b84f] text-[#070b14]" : "text-[#8b95a7] hover:text-[#f8fafc] hover:bg-[#182238]"
           }`}
         >
@@ -233,6 +236,7 @@ export function Tabs({ tabs, activeTab, onChange }) {
           )}
         </button>
       ))}
+      </div>
     </div>
   );
 }
@@ -244,11 +248,11 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Confirm", 
     ? "bg-[#f87171] hover:bg-[#ef4444] text-white"
     : "bg-[#d8b84f] hover:bg-[#e5c866] text-[#070b14]";
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-[#263145] bg-[#121b2e] p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-[#263145] bg-[#121b2e] p-6 shadow-2xl">
         <h3 className="text-lg font-bold text-[#f8fafc]">{title}</h3>
         <p className="mt-2 text-sm text-[#8b95a7]">{message}</p>
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <button
             type="button"
             onClick={onCancel}
@@ -306,19 +310,21 @@ export function DateRangeSelector({ value, onChange }) {
     { id: "30d", label: "30 Days" }, { id: "month", label: "This Month" }, { id: "90d", label: "90 Days" },
   ];
   return (
-    <div className="flex gap-1 rounded-lg border border-[#263145] bg-[#0f1726] p-1">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onChange(o.id)}
-          className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-            value === o.id ? "bg-[#d8b84f] text-[#070b14]" : "text-[#8b95a7] hover:text-[#f8fafc]"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="admin-scroll-tabs max-w-full overflow-x-auto">
+      <div className="flex min-w-max gap-1 rounded-lg border border-[#263145] bg-[#0f1726] p-1">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
+              value === o.id ? "bg-[#d8b84f] text-[#070b14]" : "text-[#8b95a7] hover:text-[#f8fafc]"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -373,32 +379,42 @@ export function ActionMenu({ items = [] }) {
 export function BulkActionBar({ count, onClear, children }) {
   if (!count) return null;
   return (
-    <div className="sticky bottom-4 z-20 flex items-center gap-4 rounded-xl border border-[#d8b84f]/30 bg-[#121b2e] px-5 py-3 shadow-xl">
+    <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-xl border border-[#d8b84f]/30 bg-[#121b2e] px-4 py-3 shadow-xl sm:flex-row sm:items-center sm:gap-4 sm:px-5">
       <span className="text-sm font-semibold text-[#d8b84f]">{count} selected</span>
       <div className="flex flex-wrap gap-2">{children}</div>
-      <button onClick={onClear} className="ml-auto text-xs text-[#8b95a7] hover:text-[#f8fafc]">Clear</button>
+      <button onClick={onClear} className="text-xs text-[#8b95a7] hover:text-[#f8fafc] sm:ml-auto">Clear</button>
     </div>
   );
 }
 
 // ─── ProductThumbnail ───
-const PRODUCT_THUMB_FALLBACK =
-  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&auto=format";
-
 export function ProductThumbnail({ src, alt = "", size = 40 }) {
   const [failed, setFailed] = React.useState(false);
+  const imageSrc = resolveProductImageUrl(src);
   React.useEffect(() => {
     setFailed(false);
-  }, [src]);
-  const displaySrc = src && !failed ? src : PRODUCT_THUMB_FALLBACK;
+  }, [imageSrc]);
+  const showImage = imageSrc && !failed;
+
+  if (!showImage) {
+    return (
+      <div
+        className="flex flex-none items-center justify-center overflow-hidden rounded-lg border border-[#263145] bg-[#182238] text-[#8b95a7]"
+        style={{ width: size, height: size }}
+        title={alt || "No product image"}
+      >
+        <Package className="h-5 w-5 shrink-0 opacity-70" strokeWidth={1.75} aria-hidden />
+      </div>
+    );
+  }
 
   return (
     <div
-      className="flex-none overflow-hidden rounded-lg bg-[#182238]"
+      className="flex-none overflow-hidden rounded-lg border border-[#263145]/60 bg-[#182238]"
       style={{ width: size, height: size }}
     >
       <img
-        src={displaySrc}
+        src={imageSrc}
         alt={alt}
         className="h-full w-full object-cover"
         onError={() => setFailed(true)}
@@ -417,6 +433,78 @@ const ORDER_PIPELINE_STEPS = [
   { key: "DELIVERED", label: "Delivered", Icon: PackageCheck },
 ];
 
+function OrderTimelineCheckBadge({ complete = false }) {
+  return (
+    <span
+      className={[
+        "order-timeline__badge absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border",
+        complete && "is-complete",
+      ].filter(Boolean).join(" ")}
+    >
+      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+      </svg>
+    </span>
+  );
+}
+
+function OrderTimelineStepCell({
+  stepKey,
+  label,
+  Icon,
+  index,
+  activeIdx,
+  hasStatus,
+  isCancelled,
+  layoutClass = "",
+}) {
+  const completed = !isCancelled && hasStatus && index < activeIdx;
+  const active = !isCancelled && hasStatus && index === activeIdx;
+  const muted = !active && !completed && !isCancelled;
+  const showBadge = active || completed;
+  const spinIcon = active && stepKey === "PROCESSING";
+
+  return (
+    <div
+      className={["order-timeline__step-cell flex flex-col items-center text-center", layoutClass].filter(Boolean).join(" ")}
+      style={{ animationDelay: `${index * 70}ms` }}
+    >
+      <div
+        className={[
+          "order-timeline__step relative flex h-12 w-12 items-center justify-center rounded-2xl border",
+          isCancelled && "is-cancelled",
+          completed && "is-complete",
+          active && "is-active",
+          muted && "is-muted",
+        ].filter(Boolean).join(" ")}
+      >
+        {active && (
+          <>
+            <span className="order-timeline__pulse absolute inset-[-6px] rounded-[1.35rem] border" />
+            <span className="order-timeline__ring absolute inset-[-3px] rounded-[1.2rem] border" />
+          </>
+        )}
+        <Icon
+          className={["relative z-10 h-5 w-5", spinIcon && "order-timeline__icon--spin"].filter(Boolean).join(" ")}
+          strokeWidth={2.25}
+        />
+        {showBadge && <OrderTimelineCheckBadge complete={completed} />}
+      </div>
+      <p
+        className={[
+          "order-timeline__label mt-2 text-[10px] font-semibold tracking-wide",
+          active && "is-active",
+          completed && "is-active",
+          muted && "is-muted",
+          isCancelled && "is-cancelled",
+        ].filter(Boolean).join(" ")}
+      >
+        {label}
+      </p>
+    </div>
+  );
+}
+
 export function OrderTimeline({ currentStatus }) {
   const pipelineStatus = normalizeOrderPipelineStatus(currentStatus);
   const idx = ORDER_PIPELINE.indexOf(pipelineStatus);
@@ -426,20 +514,10 @@ export function OrderTimeline({ currentStatus }) {
   const stepCount = ORDER_PIPELINE.length;
   const segmentCount = Math.max(stepCount - 1, 0);
 
+  const stepProps = { activeIdx, hasStatus, isCancelled };
+
   return (
     <div className="order-timeline relative rounded-2xl border px-4 py-5">
-      <style>{`
-        @keyframes twowayTimelineShimmer {
-          0% { transform: translateX(-120%); opacity: 0; }
-          18% { opacity: .7; }
-          100% { transform: translateX(120%); opacity: 0; }
-        }
-        @keyframes twowayTimelinePulse {
-          0%, 100% { opacity: .35; transform: scale(.96); }
-          50% { opacity: .9; transform: scale(1.08); }
-        }
-      `}</style>
-
       <div className="order-timeline__glow pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" />
 
       <div className="relative">
@@ -462,105 +540,39 @@ export function OrderTimeline({ currentStatus }) {
                   className={`order-timeline__fill absolute inset-y-0 left-0 transition-[width] duration-700 ease-out ${isCancelled ? "is-cancelled" : ""}`}
                   style={{ width: filled ? "100%" : "0%" }}
                 />
+                {filled && !isCancelled && (
+                  <span className="order-timeline__shimmer pointer-events-none absolute inset-y-0 left-0 w-full" />
+                )}
               </div>
             );
           })}
         </div>
 
         <div className="relative z-10 hidden lg:flex lg:justify-between lg:gap-4">
-          {ORDER_PIPELINE_STEPS.map(({ key, label, Icon }, i) => {
-            const active = !isCancelled && hasStatus && i === activeIdx;
-            const muted = !active && !isCancelled;
-
-            return (
-              <div key={key} className="flex min-w-0 flex-1 flex-col items-center text-center">
-                <div
-                  className={[
-                    "order-timeline__step relative flex h-12 w-12 items-center justify-center rounded-2xl border transition-all duration-500",
-                    isCancelled && "is-cancelled",
-                    active && "is-active",
-                    muted && "is-muted",
-                  ].filter(Boolean).join(" ")}
-                >
-                  {active && (
-                    <>
-                      <span
-                        className="order-timeline__pulse absolute inset-[-6px] rounded-[1.35rem] border"
-                        style={{ animation: "twowayTimelinePulse 1.9s ease-in-out infinite" }}
-                      />
-                      <span className="order-timeline__ring absolute inset-[-3px] rounded-[1.2rem] border" />
-                    </>
-                  )}
-                  <Icon className="relative z-10 h-5 w-5" strokeWidth={2.25} />
-                  {active && (
-                    <span className="order-timeline__badge absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
-                      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
-                      </svg>
-                    </span>
-                  )}
-                </div>
-                <p
-                  className={[
-                    "order-timeline__label mt-2 text-[10px] font-semibold tracking-wide",
-                    active && "is-active",
-                    muted && "is-muted",
-                    isCancelled && "is-cancelled",
-                  ].filter(Boolean).join(" ")}
-                >
-                  {label}
-                </p>
-              </div>
-            );
-          })}
+          {ORDER_PIPELINE_STEPS.map(({ key, label, Icon }, i) => (
+            <OrderTimelineStepCell
+              key={key}
+              stepKey={key}
+              label={label}
+              Icon={Icon}
+              index={i}
+              layoutClass="min-w-0 flex-1"
+              {...stepProps}
+            />
+          ))}
         </div>
 
         <div className="relative z-10 grid grid-cols-2 gap-4 overflow-visible sm:grid-cols-3 lg:hidden">
-          {ORDER_PIPELINE_STEPS.map(({ key, label, Icon }, i) => {
-            const active = !isCancelled && hasStatus && i === activeIdx;
-            const muted = !active && !isCancelled;
-
-            return (
-              <div key={`${key}-m`} className="flex flex-col items-center text-center">
-                <div
-                  className={[
-                    "order-timeline__step relative flex h-12 w-12 items-center justify-center rounded-2xl border transition-all duration-500",
-                    isCancelled && "is-cancelled",
-                    active && "is-active",
-                    muted && "is-muted",
-                  ].filter(Boolean).join(" ")}
-                >
-                  {active && (
-                    <>
-                      <span
-                        className="order-timeline__pulse absolute inset-[-6px] rounded-[1.35rem] border"
-                        style={{ animation: "twowayTimelinePulse 1.9s ease-in-out infinite" }}
-                      />
-                      <span className="order-timeline__ring absolute inset-[-3px] rounded-[1.2rem] border" />
-                    </>
-                  )}
-                  <Icon className="relative z-10 h-5 w-5" strokeWidth={2.25} />
-                  {active && (
-                    <span className="order-timeline__badge absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
-                      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
-                      </svg>
-                    </span>
-                  )}
-                </div>
-                <p
-                  className={[
-                    "order-timeline__label mt-2 text-[10px] font-semibold tracking-wide",
-                    active && "is-active",
-                    muted && "is-muted",
-                    isCancelled && "is-cancelled",
-                  ].filter(Boolean).join(" ")}
-                >
-                  {label}
-                </p>
-              </div>
-            );
-          })}
+          {ORDER_PIPELINE_STEPS.map(({ key, label, Icon }, i) => (
+            <OrderTimelineStepCell
+              key={`${key}-m`}
+              stepKey={key}
+              label={label}
+              Icon={Icon}
+              index={i}
+              {...stepProps}
+            />
+          ))}
         </div>
       </div>
     </div>

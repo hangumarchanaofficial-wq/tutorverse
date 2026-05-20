@@ -113,24 +113,22 @@ export default function BrandForm() {
 
   return (
     <div className="admin-products-page admin-brand-form space-y-6">
-      <div className="admin-brand-form__toolbar sticky top-0 z-20 -mx-4 border-b border-[#263145] bg-[#121b2e]/95 px-4 py-4 backdrop-blur-sm lg:-mx-6 lg:px-6">
-        <PageHeader
-          title="Add Brand"
-          subtitle="Dashboard · Catalog · Brands · Add Brand"
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to="/admin/brands">
-                <Btn variant="secondary" size="md">
-                  Cancel
-                </Btn>
-              </Link>
-              <Btn variant="primary" size="md" type="submit" form="brand-form" disabled={saving || saveBlocked}>
-                {saving ? "Saving…" : "Save brand"}
+      <PageHeader
+        title="Add Brand"
+        subtitle="Dashboard · Catalog · Brands · Add Brand"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/admin/brands">
+              <Btn variant="secondary" size="md">
+                Cancel
               </Btn>
-            </div>
-          }
-        />
-      </div>
+            </Link>
+            <Btn variant="primary" size="md" type="submit" form="brand-form" disabled={saving || saveBlocked}>
+              {saving ? "Saving…" : "Save brand"}
+            </Btn>
+          </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <form id="brand-form" onSubmit={onSubmit} className={`${panelCls} flex flex-col space-y-5`}>
@@ -198,7 +196,7 @@ export default function BrandForm() {
             options={STATUS_OPTIONS}
           />
 
-          <div className="flex flex-wrap gap-3 border-t border-[#263145] pt-5">
+          <div className="flex flex-col gap-3 border-t border-[#263145] pt-5 sm:flex-row sm:flex-wrap">
             <Link to="/admin/brands">
               <Btn variant="secondary" size="md">
                 Cancel

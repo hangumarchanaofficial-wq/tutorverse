@@ -232,6 +232,38 @@ export default function ProductsList() {
   const actionBtnClass =
     "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#263145] text-[#8b95a7] transition hover:border-[#d8b84f]/50 hover:text-[#d8b84f]";
 
+  const renderProductPrice = (p) => {
+    const livePrice = p.salePrice || p.price || 0;
+    const hasSale = p.salePrice != null && p.salePrice < (p.price || 0);
+    return (
+      <>
+        <span className="font-semibold tabular-nums text-[#f8fafc]">{formatLkr(livePrice)}</span>
+        {hasSale && (
+          <span className="ml-1 text-xs tabular-nums text-[#8b95a7] line-through">{formatLkr(p.price)}</span>
+        )}
+      </>
+    );
+  };
+
+  const renderProductActions = (p) => (
+    <div className="flex gap-1">
+      <Link to={`/admin/products/${p.id}/details`} title="View details" className={actionBtnClass}>
+        <Eye className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </Link>
+      <Link to={`/admin/products/${p.id}/edit`} title="Edit product" className={actionBtnClass}>
+        <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </Link>
+      <button
+        type="button"
+        title="Delete product"
+        onClick={() => handleDelete(p)}
+        className={`${actionBtnClass} hover:border-[#f87171]/50 hover:text-[#f87171]`}
+      >
+        <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="admin-products-page space-y-6">
       <PageHeader
@@ -317,7 +349,7 @@ export default function ProductsList() {
       )}
 
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-        <div className="admin-filterbar flex flex-wrap items-end gap-3 border-b border-[#263145] px-4 py-4">
+        <div className="admin-filterbar flex flex-col gap-3 border-b border-[#263145] px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="w-28">
             <Select
               label="Show"
@@ -328,7 +360,7 @@ export default function ProductsList() {
           </div>
           <span className="hidden pb-2 text-xs text-[#8b95a7] sm:inline">entries per page</span>
 
-          <div className="relative min-w-[200px] flex-1 max-w-md self-end">
+          <div className="relative min-w-0 w-full flex-1 sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
             <Input
               className="pl-9"
@@ -371,7 +403,52 @@ export default function ProductsList() {
           </Link>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile: product image, name, price, stock, actions */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="flex gap-3 px-4 py-3">
+                <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-full max-w-[160px]" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-8 w-28" />
+                </div>
+              </li>
+            ))
+          ) : paged.length === 0 ? (
+            <li className="px-4 py-14 text-center">
+              <p className="text-sm font-medium text-[#f8fafc]">No products match your filters</p>
+              <p className="mt-1 text-xs text-[#8b95a7]">Try another category or clear the search.</p>
+            </li>
+          ) : (
+            paged.map((p) => (
+              <li key={p.id} className="space-y-2 px-4 py-3 transition hover:bg-[#182238]/60">
+                <div className="flex gap-3">
+                  <ProductThumbnail src={resolveProductImage(p)} alt={p.name} size={44} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[#f8fafc]" title={p.name}>
+                          {p.name}
+                        </p>
+                        <p className="mt-0.5 font-mono text-[10px] font-semibold text-[#d8b84f]">#{p.id}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <StockBadge product={p} />
+                        <div className="whitespace-nowrap text-sm">{renderProductPrice(p)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {renderProductActions(p)}
+              </li>
+            ))
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="admin-table min-w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
@@ -397,11 +474,9 @@ export default function ProductsList() {
                 </tr>
               ) : (
                 paged.map((p) => {
-                  const livePrice = p.salePrice || p.price || 0;
                   const qty = p.quantity ?? p.stock ?? 0;
-                  const hasSale = p.salePrice != null && p.salePrice < (p.price || 0);
                   return (
-                    <tr key={p.id} className="transition">
+                    <tr key={p.id} className="transition hover:bg-[#182238]/60">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <ProductThumbnail src={resolveProductImage(p)} alt={p.name} size={40} />
@@ -413,16 +488,7 @@ export default function ProductsList() {
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-[#d8b84f]">
                         #{p.id}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <span className="font-semibold tabular-nums text-[#f8fafc]">
-                          {formatLkr(livePrice)}
-                        </span>
-                        {hasSale && (
-                          <span className="ml-2 text-xs tabular-nums text-[#8b95a7] line-through">
-                            {formatLkr(p.price)}
-                          </span>
-                        )}
-                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">{renderProductPrice(p)}</td>
                       <td className="px-4 py-3 tabular-nums text-[#f8fafc]">{qty}</td>
                       <td className="px-4 py-3 tabular-nums text-[#8b95a7]">
                         {p.salesCount ?? p.sales ?? 0}
@@ -434,30 +500,7 @@ export default function ProductsList() {
                         {fmtDate(p.createdAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1">
-                          <Link
-                            to={`/admin/products/${p.id}/details`}
-                            title="View details"
-                            className={actionBtnClass}
-                          >
-                            <Eye className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </Link>
-                          <Link
-                            to={`/admin/products/${p.id}/edit`}
-                            title="Edit product"
-                            className={actionBtnClass}
-                          >
-                            <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </Link>
-                          <button
-                            type="button"
-                            title="Delete product"
-                            onClick={() => handleDelete(p)}
-                            className={`${actionBtnClass} hover:border-[#f87171]/50 hover:text-[#f87171]`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </button>
-                        </div>
+                        <div className="flex justify-end">{renderProductActions(p)}</div>
                       </td>
                     </tr>
                   );
@@ -468,7 +511,7 @@ export default function ProductsList() {
         </div>
 
         {!loading && filtered.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="admin-table-pagination border-t border-[#263145]">
             <span className="text-xs font-medium text-[#8b95a7]">
               Show data{" "}
               <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

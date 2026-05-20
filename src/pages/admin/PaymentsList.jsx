@@ -27,6 +27,7 @@ import {
   useToast,
   EmptyState,
   Skeleton,
+  SkeletonRows,
   formatLkr,
   fmtDate,
 } from "../../admin/components/ui";
@@ -69,6 +70,23 @@ const STATUS_LABEL = {
   refunded: "REFUNDED",
   canceled: "CANCELED",
 };
+
+function formatPaymentId(id) {
+  return String(id).startsWith("PAY") ? id : `PAY${String(id).padStart(4, "0")}`;
+}
+
+function MethodBadge({ method }) {
+  const color = METHOD_COLORS[method] || "#8b95a7";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap"
+      style={{ background: `${color}20`, color }}
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />
+      {method}
+    </span>
+  );
+}
 
 export default function PaymentsList() {
   const toast = useToast();
@@ -209,6 +227,40 @@ export default function PaymentsList() {
     [load, toast]
   );
 
+  const paymentMenuItems = (p) => {
+    const isPaid = p.status === "succeeded";
+    const isFailed = p.status === "failed";
+    const isCod = p.method === "COD";
+    const busy = actionPendingId === p.id;
+    return [
+      {
+        label: "View Order",
+        onClick: () => {
+          window.location.href = `/admin/orders/${p.orderId}`;
+        },
+        disabled: !p.orderId,
+      },
+      { divider: true },
+      {
+        label: "Mark COD Collected",
+        onClick: () => runAction(p.id, "cod_collect", "COD payment marked as collected"),
+        disabled: !isCod || isPaid || busy,
+      },
+      {
+        label: "Retry Payment",
+        onClick: () => runAction(p.id, "retry", "Retry initiated"),
+        disabled: !isFailed || busy,
+      },
+      { divider: true },
+      {
+        label: "Refund",
+        danger: true,
+        onClick: () => runAction(p.id, "refund", "Refund initiated"),
+        disabled: !isPaid || busy,
+      },
+    ];
+  };
+
   return (
     <div className="admin-products-page admin-payments-page space-y-6">
       <PageHeader
@@ -303,15 +355,15 @@ export default function PaymentsList() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64 min-w-[10rem]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 w-full flex-1 sm:max-w-xs">
           <Input
             placeholder="Search transaction ref…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select
             label="Status"
             value={statusFilter}
@@ -319,7 +371,7 @@ export default function PaymentsList() {
             options={STATUS_OPTIONS}
           />
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select
             label="Method"
             value={methodFilter}
@@ -329,35 +381,85 @@ export default function PaymentsList() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+        {/* Mobile */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading && items.length === 0 ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="px-4 py-3">
+                <Skeleton className="mb-2 h-3.5 w-20" />
+                <Skeleton className="mb-2 h-3 w-36" />
+                <Skeleton className="h-3 w-28" />
+              </li>
+            ))
+          ) : items.length === 0 ? (
+            <li className="px-4 py-12">
+              <EmptyState
+                title="No payments found"
+                description="Try clearing filters, or wait for new orders to come through."
+              />
+            </li>
+          ) : (
+            paged.map((p) => {
+              const busy = actionPendingId === p.id;
+              return (
+                <li
+                  key={p.id}
+                  className={`flex gap-3 px-4 py-3 transition hover:bg-[#182238]/60 ${busy ? "opacity-60" : ""}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-mono text-xs font-semibold text-[#d8b84f]">
+                        {formatPaymentId(p.id)}
+                      </span>
+                      <StatusBadge status={STATUS_LABEL[p.status] || p.status} />
+                    </div>
+                    <Link
+                      to={`/admin/orders/${p.orderId}`}
+                      className="mt-1 block truncate text-xs text-[#60a5fa] hover:underline"
+                    >
+                      {p.orderNumber || `#${p.orderId}`}
+                    </Link>
+                    <p className="mt-0.5 truncate text-sm font-medium text-[#f8fafc]" title={p.customerName}>
+                      {p.customerName || "—"}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <MethodBadge method={p.method} />
+                      <span className="text-xs font-semibold tabular-nums whitespace-nowrap text-[#f8fafc]">
+                        {formatLkr(p.amount)}
+                      </span>
+                      <span className="text-xs text-[#8b95a7]">{fmtDate(p.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 self-center">
+                    <ActionMenu items={paymentMenuItems(p)} />
+                  </div>
+                </li>
+              );
+            })
+          )}
+        </ul>
+
+        {/* Desktop */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="admin-table min-w-[1000px] w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
-                <th className="px-4 py-3">Payment ID</th>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Method</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Transaction Ref</th>
-                <th className="px-4 py-3">Gateway</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3 w-10"></th>
+                <th className="px-4 py-3 align-middle font-medium">Payment ID</th>
+                <th className="px-4 py-3 align-middle font-medium">Order</th>
+                <th className="min-w-[160px] px-4 py-3 align-middle font-medium">Customer</th>
+                <th className="px-4 py-3 align-middle font-medium">Method</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Amount</th>
+                <th className="px-4 py-3 align-middle font-medium">Status</th>
+                <th className="px-4 py-3 align-middle font-medium">Transaction Ref</th>
+                <th className="px-4 py-3 align-middle font-medium">Gateway</th>
+                <th className="px-4 py-3 align-middle font-medium">Date</th>
+                <th className="w-10 px-4 py-3 align-middle" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[#263145]/60">
               {loading && items.length === 0 ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 10 }).map((_, c) => (
-                      <td key={c} className="px-4 py-3">
-                        <Skeleton className="h-3.5 w-full max-w-[120px]" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                <SkeletonRows rows={6} cols={10} />
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-12">
@@ -369,80 +471,57 @@ export default function PaymentsList() {
                 </tr>
               ) : (
                 paged.map((p) => {
-                  const isPaid = p.status === "succeeded";
-                  const isFailed = p.status === "failed";
-                  const isCod = p.method === "COD";
                   const busy = actionPendingId === p.id;
                   return (
-                    <tr key={p.id} className={`transition hover:bg-[#182238]/60 ${busy ? "opacity-60" : ""}`}>
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#d8b84f]">
-                        {String(p.id).startsWith("PAY") ? p.id : `PAY${String(p.id).padStart(4, "0")}`}
+                    <tr
+                      key={p.id}
+                      className={`transition hover:bg-[#182238]/60 ${busy ? "opacity-60" : ""}`}
+                    >
+                      <td className="align-middle whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-[#d8b84f]">
+                        {formatPaymentId(p.id)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="align-middle whitespace-nowrap px-4 py-3">
                         <Link to={`/admin/orders/${p.orderId}`} className="text-[#60a5fa] hover:underline">
                           {p.orderNumber || `#${p.orderId}`}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-[#f8fafc]">
-                        {p.customerName || "—"}
+                      <td className="align-middle max-w-[200px] px-4 py-3">
+                        <p className="truncate font-medium text-[#f8fafc]" title={p.customerName}>
+                          {p.customerName || "—"}
+                        </p>
                         {p.customerEmail && (
-                          <p className="text-[11px] text-[#8b95a7]">{p.customerEmail}</p>
+                          <p className="truncate text-[11px] text-[#8b95a7]" title={p.customerEmail}>
+                            {p.customerEmail}
+                          </p>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold"
-                          style={{
-                            background: `${METHOD_COLORS[p.method] || "#8b95a7"}20`,
-                            color: METHOD_COLORS[p.method] || "#8b95a7",
-                          }}
-                        >
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{ background: METHOD_COLORS[p.method] || "#8b95a7" }}
-                          />
-                          {p.method}
-                        </span>
+                      <td className="align-middle whitespace-nowrap px-4 py-3">
+                        <MethodBadge method={p.method} />
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-[#f8fafc]">
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-[#f8fafc]">
                         {formatLkr(p.amount)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="align-middle whitespace-nowrap px-4 py-3">
                         <StatusBadge status={STATUS_LABEL[p.status] || p.status} />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[#8b95a7]">{p.transactionRef || "—"}</td>
-                      <td className="px-4 py-3 text-xs text-[#8b95a7]">{p.gateway}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-[#8b95a7]">{fmtDate(p.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        <ActionMenu
-                          items={[
-                            {
-                              label: "View Order",
-                              onClick: () => {
-                                window.location.href = `/admin/orders/${p.orderId}`;
-                              },
-                              disabled: !p.orderId,
-                            },
-                            { divider: true },
-                            {
-                              label: "Mark COD Collected",
-                              onClick: () => runAction(p.id, "cod_collect", "COD payment marked as collected"),
-                              disabled: !isCod || isPaid || busy,
-                            },
-                            {
-                              label: "Retry Payment",
-                              onClick: () => runAction(p.id, "retry", "Retry initiated"),
-                              disabled: !isFailed || busy,
-                            },
-                            { divider: true },
-                            {
-                              label: "Refund",
-                              danger: true,
-                              onClick: () => runAction(p.id, "refund", "Refund initiated"),
-                              disabled: !isPaid || busy,
-                            },
-                          ]}
-                        />
+                      <td className="align-middle max-w-[180px] px-4 py-3">
+                        <span
+                          className="block truncate font-mono text-xs text-[#8b95a7]"
+                          title={p.transactionRef}
+                        >
+                          {p.transactionRef || "—"}
+                        </span>
+                      </td>
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-xs text-[#8b95a7]">
+                        {p.gateway}
+                      </td>
+                      <td className="align-middle whitespace-nowrap px-4 py-3 text-xs text-[#8b95a7]">
+                        {fmtDate(p.createdAt)}
+                      </td>
+                      <td className="align-middle px-4 py-3 text-right">
+                        <div className="flex justify-end">
+                          <ActionMenu items={paymentMenuItems(p)} />
+                        </div>
                       </td>
                     </tr>
                   );
@@ -452,12 +531,12 @@ export default function PaymentsList() {
           </table>
         </div>
 
-        {items.length > 10 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
+        {!loading && items.length > pageSize && (
+          <div className="admin-table-pagination border-t border-[#263145]">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <span className="text-xs font-medium text-[#8b95a7]">
-                Show{" "}
-                <span className="mx-1 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+                Show data{" "}
+                <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
                 of {items.length}
               </span>
               <div className="w-20">

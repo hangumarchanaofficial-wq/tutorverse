@@ -681,7 +681,7 @@ export default function ReportsPage() {
   }, [section, activeTab, navigate]);
 
   return (
-    <div className="admin-products-page admin-reports-page space-y-6">
+    <div className="admin-products-page admin-reports-page min-w-0 space-y-6">
       <PageHeader
         title="Reports"
         badge={
@@ -698,6 +698,7 @@ export default function ReportsPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
+          className="min-w-0"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}

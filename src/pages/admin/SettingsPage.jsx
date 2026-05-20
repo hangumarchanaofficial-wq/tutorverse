@@ -18,7 +18,7 @@ import {
   useToast,
   timeAgo,
 } from "../../admin/components/ui";
-import { dummyAvatarUrl } from "../../admin/utils/avatars";
+import { AdminProfileAvatar } from "../../admin/utils/avatars";
 
 const SETTINGS_KEY = "twoway_admin_settings";
 const PAGE_SUBTITLE = "System · Settings";
@@ -106,7 +106,7 @@ function SettingsSection({ title, description, icon, onSave, saveLabel, children
         >
           {footerExtra}
           {onSave && (
-            <Btn variant="primary" onClick={onSave}>
+            <Btn variant="primary" className="w-full sm:w-auto" onClick={onSave}>
               {saveLabel || "Save changes"}
             </Btn>
           )}
@@ -117,27 +117,7 @@ function SettingsSection({ title, description, icon, onSave, saveLabel, children
 }
 
 function AdminUserAvatar({ admin }) {
-  const src = dummyAvatarUrl(admin.id, admin.name);
-  const initial = (admin.name || "?")[0].toUpperCase();
-  const [failed, setFailed] = useState(false);
-
-  return (
-    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full ring-1 ring-[#3d4a5f]">
-      {!failed ? (
-        <img
-          src={src}
-          alt=""
-          className="h-9 w-9 object-cover"
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <div className="flex h-9 w-9 items-center justify-center bg-gradient-to-br from-[#2a3548] to-[#1a2332] text-[11px] font-bold text-[#e5e7eb]">
-          {initial}
-        </div>
-      )}
-    </div>
-  );
+  return <AdminProfileAvatar user={{ id: admin.id, name: admin.name }} size="md" />;
 }
 
 export default function SettingsPage() {
@@ -183,7 +163,7 @@ function StoreSettings({ saved, toast }) {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <SettingsSection
         icon={Store}
         title="Store Information"
@@ -209,7 +189,7 @@ function StoreSettings({ saved, toast }) {
         </div>
       </SettingsSection>
 
-      <aside className={`${panelCls} flex flex-col gap-3 p-5 lg:sticky lg:top-4 lg:self-start`}>
+      <aside className={`${panelCls} order-2 flex flex-col gap-3 p-5 lg:order-none lg:sticky lg:top-4 lg:self-start`}>
         <p className="text-xs font-semibold uppercase tracking-wider text-[#8b95a7]">Tips</p>
         <ul className="space-y-2 text-xs leading-relaxed text-[#8b95a7]">
           <li>Use a monitored inbox for the store email — order alerts route there in production.</li>

@@ -166,6 +166,40 @@ export default function InvoicesList() {
   const actionBtnClass =
     "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#263145] text-[#8b95a7] transition hover:border-[#d8b84f]/50 hover:text-[#d8b84f] disabled:cursor-not-allowed disabled:opacity-40";
 
+  const renderInvoiceActions = (inv, busy) => (
+    <div className="flex gap-1">
+      <button
+        type="button"
+        title="Download PDF"
+        disabled={busy}
+        onClick={() => downloadPdf(inv)}
+        className={actionBtnClass}
+      >
+        <Download className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+      <Link to={`/admin/orders/${inv.orderId}`} title="View order" className={actionBtnClass}>
+        <Eye className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </Link>
+      <button
+        type="button"
+        title="Print"
+        disabled={busy}
+        onClick={() => printInvoice(inv)}
+        className={actionBtnClass}
+      >
+        <Printer className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+      <button
+        type="button"
+        title="Email to customer"
+        onClick={() => toast?.(`Invoice ${inv.invoiceNumber} queued for email (demo)`)}
+        className={actionBtnClass}
+      >
+        <Mail className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="admin-products-page space-y-6">
       <PageHeader
@@ -220,8 +254,8 @@ export default function InvoicesList() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[220px] flex-1 max-w-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-0 w-full flex-1 sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
           <Input
             className="pl-9"
@@ -230,7 +264,7 @@ export default function InvoicesList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select
             label="Status"
             value={statusFilter}
@@ -241,7 +275,7 @@ export default function InvoicesList() {
             }))}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
             label="Method"
             value={methodFilter}
@@ -255,7 +289,48 @@ export default function InvoicesList() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-        <div className="overflow-x-auto">
+        {/* Mobile: invoice, customer, amount, status, actions */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="space-y-2 px-4 py-3">
+                <div className="flex justify-between gap-2">
+                  <Skeleton className="h-3.5 w-32" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-40" />
+                <Skeleton className="h-8 w-full max-w-[180px]" />
+              </li>
+            ))
+          ) : paged.length === 0 ? (
+            <li className="px-4 py-14 text-center">
+              <p className="text-sm font-medium text-[#f8fafc]">No invoices match your filters</p>
+              <p className="mt-1 text-xs text-[#8b95a7]">Try a different status or clear the search.</p>
+            </li>
+          ) : (
+            paged.map((inv) => {
+              const busy = downloadingId === inv.id;
+              return (
+                <li key={inv.id} className="space-y-2 px-4 py-3 transition hover:bg-[#182238]/60">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-semibold text-[#d8b84f]">{inv.invoiceNumber}</p>
+                      <p className="mt-0.5 truncate text-sm font-medium text-[#f8fafc]">{inv.customerName}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <StatusBadge status={inv.status} />
+                      <p className="text-sm font-semibold tabular-nums text-[#f8fafc]">{formatLkr(inv.amount)}</p>
+                    </div>
+                  </div>
+                  {renderInvoiceActions(inv, busy)}
+                </li>
+              );
+            })
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="admin-table min-w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
@@ -283,7 +358,7 @@ export default function InvoicesList() {
                 paged.map((inv) => {
                   const busy = downloadingId === inv.id;
                   return (
-                    <tr key={inv.id} className="transition">
+                    <tr key={inv.id} className="transition hover:bg-[#182238]/60">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-[#d8b84f]">
                         {inv.invoiceNumber}
                       </td>
@@ -309,41 +384,7 @@ export default function InvoicesList() {
                         {fmtDate(inv.createdAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            type="button"
-                            title="Download PDF"
-                            disabled={busy}
-                            onClick={() => downloadPdf(inv)}
-                            className={actionBtnClass}
-                          >
-                            <Download className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </button>
-                          <Link
-                            to={`/admin/orders/${inv.orderId}`}
-                            title="View order"
-                            className={actionBtnClass}
-                          >
-                            <Eye className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </Link>
-                          <button
-                            type="button"
-                            title="Print"
-                            disabled={busy}
-                            onClick={() => printInvoice(inv)}
-                            className={actionBtnClass}
-                          >
-                            <Printer className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </button>
-                          <button
-                            type="button"
-                            title="Email to customer"
-                            onClick={() => toast?.(`Invoice ${inv.invoiceNumber} queued for email (demo)`)}
-                            className={actionBtnClass}
-                          >
-                            <Mail className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          </button>
-                        </div>
+                        <div className="flex justify-end">{renderInvoiceActions(inv, busy)}</div>
                       </td>
                     </tr>
                   );
@@ -354,7 +395,7 @@ export default function InvoicesList() {
         </div>
 
         {!loading && filtered.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="admin-table-pagination border-t border-[#263145]">
             <span className="text-xs font-medium text-[#8b95a7]">
               Show data{" "}
               <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
 
+/** Default admin header portrait (Kristin Watson / dev bypass) */
+export const DEFAULT_ADMIN_PROFILE_AVATAR =
+  "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=256&h=256&fit=crop&crop=face&auto=format&q=85";
+
 /** Curated Unsplash portraits — stable per sender via hash (matches Sellers list) */
 export const PREMIUM_AVATAR_URLS = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=256&h=256&fit=crop&crop=face&auto=format&q=85",
@@ -38,6 +42,62 @@ function paletteIndex(seed) {
 export function dummyAvatarUrl(seed, name) {
   const i = paletteIndex(seed || name) % PREMIUM_AVATAR_URLS.length;
   return PREMIUM_AVATAR_URLS[i];
+}
+
+export function adminDisplayName(user) {
+  return user?.displayName || user?.name || user?.email?.split("@")[0] || "Admin";
+}
+
+/** Portrait for signed-in admin or demo header */
+export function adminProfileAvatarUrl(user) {
+  if (user?.photoURL) return user.photoURL;
+  if (user?.avatarUrl) return user.avatarUrl;
+  if (!user) return DEFAULT_ADMIN_PROFILE_AVATAR;
+  return dummyAvatarUrl(user.uid || user.id || user.email, adminDisplayName(user));
+}
+
+const ADMIN_AVATAR_SIZES = {
+  sm: { box: "h-8 w-8", text: "text-[10px]" },
+  md: { box: "h-9 w-9", text: "text-[11px]" },
+  lg: { box: "h-10 w-10", text: "text-xs" },
+};
+
+/** Admin shell profile photo with initials fallback */
+export function AdminProfileAvatar({ user, size = "md", className = "" }) {
+  const name = adminDisplayName(user);
+  const initial = (name[0] || "A").toUpperCase();
+  const src = adminProfileAvatarUrl(user);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [src]);
+
+  const { box, text } = ADMIN_AVATAR_SIZES[size] || ADMIN_AVATAR_SIZES.md;
+
+  return (
+    <div
+      className={`relative shrink-0 overflow-hidden rounded-full ring-1 ring-[#d0d5dd] shadow-[0_1px_3px_rgba(16,24,40,0.08)] ${box} ${className}`}
+    >
+      {!imgFailed ? (
+        <img
+          src={src}
+          alt=""
+          className={`${box} object-cover`}
+          loading="lazy"
+          decoding="async"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <div
+          className={`flex ${box} items-center justify-center bg-gradient-to-br from-[#2a3548] to-[#1a2332] font-bold text-[#e5e7eb] ${text}`}
+          aria-hidden
+        >
+          {initial}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Resolve portrait URL for an inbox row (explicit url → customer id → brand → hash) */

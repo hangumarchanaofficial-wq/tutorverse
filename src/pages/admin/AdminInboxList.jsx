@@ -351,8 +351,8 @@ export default function AdminInboxList() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col bg-[#121b2e]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263145] px-4 py-3">
-            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[#8b95a7]">
+          <div className="flex items-center justify-between gap-2 border-b border-[#263145] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+            <label className="hidden cursor-pointer items-center gap-2 text-[11px] text-[#8b95a7] sm:flex">
               <input
                 ref={selectAllRef}
                 type="checkbox"
@@ -362,7 +362,7 @@ export default function AdminInboxList() {
               />
               Select all
             </label>
-            <div className="flex items-center gap-1 text-[11px] text-[#8b95a7]">
+            <div className="flex flex-1 items-center justify-end gap-1 text-[11px] text-[#8b95a7] sm:flex-initial sm:justify-start">
               <span className="tabular-nums">
                 {filtered.length === 0 ? "0" : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filtered.length)}`} of {filtered.length}
               </span>
@@ -387,14 +387,14 @@ export default function AdminInboxList() {
             </div>
           </div>
 
-          <div className="relative border-b border-[#263145] px-4 py-2">
-            <Search className="pointer-events-none absolute left-7 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6b7280]" strokeWidth={1.75} />
+          <div className="relative border-b border-[#263145] px-3 py-2 sm:px-4">
+            <Search className="pointer-events-none absolute left-6 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6b7280] sm:left-7" strokeWidth={1.75} />
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               placeholder="Search messages…"
-              className="w-full rounded-lg border border-[#263145] bg-[#0f1726] py-2 pl-10 pr-3 text-sm text-[#f8fafc] placeholder-[#6b7280] outline-none focus:border-[#d8b84f]/50"
+              className="w-full rounded-lg border border-[#263145] bg-[#0f1726] py-2 pl-9 pr-3 text-sm text-[#f8fafc] placeholder-[#6b7280] outline-none focus:border-[#d8b84f]/50 sm:pl-10"
             />
           </div>
 
@@ -413,40 +413,65 @@ export default function AdminInboxList() {
                   tabIndex={0}
                   onClick={() => openRow(m)}
                   onKeyDown={(e) => e.key === "Enter" && openRow(m)}
-                  className={`flex cursor-pointer items-start gap-3 px-4 py-3.5 transition hover:bg-[#182238]/80 ${
+                  className={`flex cursor-pointer items-start gap-3 px-3 py-3 transition hover:bg-[#182238]/80 sm:px-4 sm:py-3.5 ${
                     m.unread ? "bg-[#0f1726]/40" : ""
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    className="mt-1.5 rounded border-[#334155] bg-[#182238]"
-                    checked={selectedIds.has(m.id)}
-                    onChange={(e) => toggleSelectOne(m.id, e)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <button
-                    type="button"
-                    className="mt-0.5 text-[#8b95a7] hover:text-[#d8b84f]"
-                    aria-label={m.starred ? "Unstar" : "Star"}
-                    onClick={(e) => toggleStar(m.id, e)}
-                  >
-                    <Star className={`h-4 w-4 ${m.starred ? "fill-[#d8b84f] text-[#d8b84f]" : ""}`} strokeWidth={1.75} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`mt-0.5 rounded p-0.5 hover:bg-[#263145] ${
-                      snoozedIds.has(m.id) ? "text-[#d8b84f]" : "text-[#6b7280] hover:text-[#d8b84f]"
-                    }`}
-                    title={snoozedIds.has(m.id) ? "Unsnooze" : "Snooze"}
-                    aria-label={snoozedIds.has(m.id) ? "Unsnooze" : "Snooze"}
-                    onClick={(e) => toggleSnooze(m.id, e)}
-                  >
-                    <Clock className="h-3.5 w-3.5" strokeWidth={2} />
-                  </button>
+                  {/* Desktop: checkbox, star, snooze */}
+                  <div className="hidden shrink-0 items-start gap-1 pt-0.5 sm:flex">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-[#334155] bg-[#182238]"
+                      checked={selectedIds.has(m.id)}
+                      onChange={(e) => toggleSelectOne(m.id, e)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                      type="button"
+                      className="text-[#8b95a7] hover:text-[#d8b84f]"
+                      aria-label={m.starred ? "Unstar" : "Star"}
+                      onClick={(e) => toggleStar(m.id, e)}
+                    >
+                      <Star className={`h-4 w-4 ${m.starred ? "fill-[#d8b84f] text-[#d8b84f]" : ""}`} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded p-0.5 hover:bg-[#263145] ${
+                        snoozedIds.has(m.id) ? "text-[#d8b84f]" : "text-[#6b7280] hover:text-[#d8b84f]"
+                      }`}
+                      title={snoozedIds.has(m.id) ? "Unsnooze" : "Snooze"}
+                      aria-label={snoozedIds.has(m.id) ? "Unsnooze" : "Snooze"}
+                      onClick={(e) => toggleSnooze(m.id, e)}
+                    >
+                      <Clock className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  </div>
+
                   <InboxAvatar message={m} />
+
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <span className={`text-sm ${m.unread ? "font-semibold text-[#f8fafc]" : "font-medium text-[#e5e7eb]"}`}>{m.from}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <span
+                        className={`min-w-0 truncate text-sm ${
+                          m.unread ? "font-semibold text-[#f8fafc]" : "font-medium text-[#e5e7eb]"
+                        }`}
+                      >
+                        {m.from}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1.5 text-[#8b95a7] sm:hidden">
+                        {m.hasAttachment && <Paperclip className="h-3.5 w-3.5" strokeWidth={2} />}
+                        <span className="text-[10px] tabular-nums whitespace-nowrap">{fmtShortDate(m.date)}</span>
+                      </div>
+                    </div>
+                    <p
+                      className={`mt-0.5 truncate text-sm ${
+                        m.unread ? "font-medium text-[#f8fafc]" : "text-[#c3cad9]"
+                      }`}
+                    >
+                      {m.subject}
+                    </p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-[#8b95a7]">{m.snippet}</p>
+                    <div className="mt-1.5 hidden flex-wrap gap-1 sm:flex">
                       {m.labelIds.map((lid) => {
                         const lb = labelLookup(lid);
                         if (!lb) return null;
@@ -461,10 +486,18 @@ export default function AdminInboxList() {
                         );
                       })}
                     </div>
-                    <p className={`mt-0.5 text-sm ${m.unread ? "font-medium text-[#f8fafc]" : "text-[#c3cad9]"}`}>{m.subject}</p>
-                    <p className="mt-1 line-clamp-1 text-xs text-[#8b95a7]">{m.snippet}</p>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+
+                  <button
+                    type="button"
+                    className="shrink-0 self-center text-[#8b95a7] hover:text-[#d8b84f] sm:hidden"
+                    aria-label={m.starred ? "Unstar" : "Star"}
+                    onClick={(e) => toggleStar(m.id, e)}
+                  >
+                    <Star className={`h-4 w-4 ${m.starred ? "fill-[#d8b84f] text-[#d8b84f]" : ""}`} strokeWidth={1.75} />
+                  </button>
+
+                  <div className="hidden shrink-0 flex-col items-end gap-1.5 pt-0.5 sm:flex">
                     <span className="text-[11px] tabular-nums text-[#8b95a7]">{fmtShortDate(m.date)}</span>
                     {m.hasAttachment && <Paperclip className="h-3.5 w-3.5 text-[#6b7280]" strokeWidth={2} />}
                   </div>
@@ -473,12 +506,18 @@ export default function AdminInboxList() {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-[#263145] px-4 py-3">
-            <p className="text-[11px] text-[#6b7280]">
+          <div className="flex items-center justify-between gap-2 border-t border-[#263145] px-3 py-2.5 sm:px-4 sm:py-3">
+            <p className="hidden text-[11px] text-[#6b7280] sm:block">
               <Layers className="mr-1 inline h-3.5 w-3.5 align-text-bottom opacity-70" strokeWidth={1.75} />
               Selections and snoozes persist for this browser session.
             </p>
-            <Btn variant="ghost" size="xs" onClick={archiveSelected} disabled={selectedIds.size === 0}>
+            <Btn
+              variant="ghost"
+              size="xs"
+              className="ml-auto sm:ml-0"
+              onClick={archiveSelected}
+              disabled={selectedIds.size === 0}
+            >
               Archive selected
             </Btn>
           </div>

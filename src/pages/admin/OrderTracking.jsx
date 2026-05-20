@@ -184,8 +184,8 @@ export default function OrderTracking() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[220px] flex-1 max-w-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-0 w-full flex-1 sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
           <Input
             className="pl-9"
@@ -194,7 +194,7 @@ export default function OrderTracking() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select
             label="Status"
             value={statusFilter}
@@ -205,7 +205,7 @@ export default function OrderTracking() {
             }))}
           />
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Select
             label="Carrier"
             value={carrierFilter}
@@ -216,7 +216,51 @@ export default function OrderTracking() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-        <div className="overflow-x-auto">
+        {/* Mobile: order, status, view only */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {loading ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="h-3 w-36" />
+                </div>
+                <Skeleton className="h-6 w-20 rounded-full" />
+              </li>
+            ))
+          ) : paged.length === 0 ? (
+            <li className="px-4 py-14 text-center">
+              <p className="text-sm font-medium text-[#f8fafc]">No shipments match your filters</p>
+              <p className="mt-1 text-xs text-[#8b95a7]">Try a different status or clear the search.</p>
+            </li>
+          ) : (
+            paged.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#182238]/80">
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={`/admin/orders/${r.id}`}
+                    className="font-mono text-xs font-semibold text-[#d8b84f] hover:underline"
+                  >
+                    {r.orderNumber}
+                  </Link>
+                  <p className="mt-0.5 truncate text-sm text-[#8b95a7]">{r.customer}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <StatusBadge status={r.status} />
+                  <Link
+                    to={`/admin/orders/${r.id}`}
+                    className="inline-flex items-center rounded-lg border border-[#263145] bg-[#0f1726] px-3 py-1.5 text-xs font-semibold text-[#f8fafc] transition hover:border-[#d8b84f]/50 hover:text-[#d8b84f]"
+                  >
+                    View
+                  </Link>
+                </div>
+              </li>
+            ))
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="admin-table min-w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
@@ -273,7 +317,7 @@ export default function OrderTracking() {
         </div>
 
         {!loading && filtered.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="admin-table-pagination border-t border-[#263145]">
             <span className="text-xs font-medium text-[#8b95a7]">
               Show data{" "}
               <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

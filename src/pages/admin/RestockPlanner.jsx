@@ -6,10 +6,17 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import {
-  PageHeader, StatusBadge, ProductThumbnail,
-  Btn, Input, Select, formatNum, useToast,
+  PageHeader,
+  StatusBadge,
+  ProductThumbnail,
+  Btn,
+  Input,
+  Select,
+  formatNum,
+  useToast,
 } from "../../admin/components/ui";
 import { products as mockProducts } from "../../admin/data/mockData";
+import { parseCatalogProductImage } from "../../lib/productImage";
 
 const TARGET_DAYS = 30;
 const LEAD_TIME = 7;
@@ -24,6 +31,34 @@ function getPriority(daysCover) {
 
 const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, normal: 3 };
 
+function DaysCover({ daysCover }) {
+  if (daysCover === Infinity) {
+    return <span className="tabular-nums text-[#8b95a7]">∞</span>;
+  }
+  const rounded = Math.round(daysCover);
+  const cls =
+    daysCover < 3
+      ? "font-semibold text-[#f87171]"
+      : daysCover < 7
+        ? "font-semibold text-[#f59e0b]"
+        : "text-[#f8fafc]";
+  return <span className={`tabular-nums ${cls}`}>{rounded}d</span>;
+}
+
+function StockValue({ stock, lowStockThreshold }) {
+  const cls =
+    stock <= 0 ? "text-[#f87171]" : stock <= lowStockThreshold ? "text-[#f59e0b]" : "text-[#f8fafc]";
+  return <span className={`font-semibold tabular-nums ${cls}`}>{stock}</span>;
+}
+
+function SuggestedQty({ qty }) {
+  return (
+    <span className="inline-flex rounded-md bg-[#d8b84f]/15 px-2 py-1 text-sm font-bold tabular-nums text-[#d8b84f]">
+      +{qty}
+    </span>
+  );
+}
+
 export default function RestockPlanner() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -34,19 +69,24 @@ export default function RestockPlanner() {
     return mockProducts
       .map((p) => {
         const dailyAvg = (p.salesCount || 0) / 30;
-        const daysCover = dailyAvg > 0 ? p.stock / dailyAvg : (p.stock > 0 ? Infinity : 0);
+        const daysCover = dailyAvg > 0 ? p.stock / dailyAvg : p.stock > 0 ? Infinity : 0;
         const suggested = Math.max(0, Math.ceil(TARGET_DAYS * dailyAvg - p.stock));
         const priority = p.stock <= 0 ? "critical" : getPriority(daysCover);
         return { ...p, dailyAvg, daysCover, suggested, priority };
       })
       .filter((p) => p.suggested > 0 || p.stock <= 0)
-      .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.daysCover - b.daysCover);
+      .sort(
+        (a, b) =>
+          PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.daysCover - b.daysCover
+      );
   }, []);
 
   const filtered = useMemo(() => {
     if (!search) return restockItems;
     const q = search.toLowerCase();
-    return restockItems.filter((p) => p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q));
+    return restockItems.filter(
+      (p) => p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q)
+    );
   }, [restockItems, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -61,10 +101,14 @@ export default function RestockPlanner() {
   }, [page, totalPages]);
 
   const handleExport = () => {
-    const header = "Product,SKU,Current Stock,30-Day Sales,Daily Avg,Days Cover,Lead Time,Suggested Qty,Priority\n";
-    const rows = filtered.map((p) =>
-      `"${p.name}",${p.sku},${p.stock},${p.salesCount},${p.dailyAvg.toFixed(1)},${p.daysCover === Infinity ? "∞" : Math.round(p.daysCover)},${LEAD_TIME},${p.suggested},${p.priority}`
-    ).join("\n");
+    const header =
+      "Product,SKU,Current Stock,30-Day Sales,Daily Avg,Days Cover,Lead Time,Suggested Qty,Priority\n";
+    const rows = filtered
+      .map(
+        (p) =>
+          `"${p.name}",${p.sku},${p.stock},${p.salesCount},${p.dailyAvg.toFixed(1)},${p.daysCover === Infinity ? "∞" : Math.round(p.daysCover)},${LEAD_TIME},${p.suggested},${p.priority}`
+      )
+      .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -76,14 +120,13 @@ export default function RestockPlanner() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="admin-products-page space-y-6">
       <PageHeader
         title="Restock Planner"
         subtitle="AI-assisted restock recommendations"
         actions={<Btn variant="primary" onClick={handleExport}>Export Plan</Btn>}
       />
 
-      {/* Methodology */}
       <div className="rounded-xl border border-[#263145] bg-[#121b2e] p-5">
         <h3 className="text-sm font-bold text-[#f8fafc]">How we calculate recommendations</h3>
         <div className="mt-2 grid gap-3 text-xs text-[#8b95a7] sm:grid-cols-3">
@@ -94,39 +137,76 @@ export default function RestockPlanner() {
             <span className="font-semibold text-[#d8b84f]">Days of Cover</span> = Current Stock ÷ Daily Avg
           </div>
           <div className="rounded-lg bg-[#182238] p-3">
-            <span className="font-semibold text-[#d8b84f]">Suggested Qty</span> = ({TARGET_DAYS}d × Daily Avg) − Current Stock
+            <span className="font-semibold text-[#d8b84f]">Suggested Qty</span> = ({TARGET_DAYS}d × Daily
+            Avg) − Current Stock
           </div>
         </div>
         <p className="mt-3 text-[11px] text-[#8b95a7]">
-          Target days of cover: <strong className="text-[#f8fafc]">{TARGET_DAYS} days</strong> · Lead time assumption: <strong className="text-[#f8fafc]">{LEAD_TIME} days</strong>
+          Target days of cover: <strong className="text-[#f8fafc]">{TARGET_DAYS} days</strong> · Lead time
+          assumption: <strong className="text-[#f8fafc]">{LEAD_TIME} days</strong>
         </p>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Input
           placeholder="Search product or SKU…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="!w-56"
+          className="min-w-0 w-full sm:!w-56"
         />
         <span className="text-xs text-[#8b95a7]">{filtered.length} products need restocking</span>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+        {/* Mobile: product, stock, cover, suggested, priority */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {filtered.length === 0 ? (
+            <li className="px-4 py-16 text-center text-sm text-[#8b95a7]">
+              All products are well-stocked. No restocking needed.
+            </li>
+          ) : (
+            paged.map((p) => (
+              <li key={p.id} className="flex gap-3 px-4 py-3 transition hover:bg-[#182238]/60">
+                <ProductThumbnail src={parseCatalogProductImage(p)} alt={p.name} size={44} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[#f8fafc]" title={p.name}>
+                        {p.name}
+                      </p>
+                      <p className="mt-0.5 truncate font-mono text-[10px] text-[#8b95a7]" title={p.sku}>
+                        {p.sku}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <StatusBadge status={p.priority} />
+                      <SuggestedQty qty={p.suggested} />
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8b95a7]">
+                    Stock{" "}
+                    <StockValue stock={p.stock} lowStockThreshold={p.lowStockThreshold} /> · Cover{" "}
+                    <DaysCover daysCover={p.daysCover} /> · {formatNum(p.salesCount)} sold (30d)
+                  </p>
+                </div>
+              </li>
+            ))
+          )}
+        </ul>
+
+        {/* Desktop: full table */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="admin-table min-w-full text-left text-sm">
             <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
-                <th className="px-4 py-3 min-w-[200px]">Product</th>
-                <th className="px-4 py-3">Current Stock</th>
-                <th className="px-4 py-3">30d Sales</th>
-                <th className="px-4 py-3">Daily Avg</th>
-                <th className="px-4 py-3">Days Cover</th>
-                <th className="px-4 py-3">Lead Time</th>
-                <th className="px-4 py-3">Suggested Qty</th>
-                <th className="px-4 py-3">Priority</th>
+                <th className="min-w-[220px] px-4 py-3 align-middle font-medium">Product</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Current Stock</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">30d Sales</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Daily Avg</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Days Cover</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Lead Time</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Suggested Qty</th>
+                <th className="px-4 py-3 align-middle font-medium">Priority</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#263145]/60">
@@ -139,38 +219,40 @@ export default function RestockPlanner() {
               ) : (
                 paged.map((p) => (
                   <tr key={p.id} className="transition hover:bg-[#182238]/60">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <ProductThumbnail src={p.images?.[0]} alt={p.name} size={32} />
+                    <td className="align-middle px-4 py-3">
+                      <div className="flex min-w-0 max-w-[280px] items-center gap-3">
+                        <ProductThumbnail src={parseCatalogProductImage(p)} alt={p.name} size={40} />
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-[#f8fafc]">{p.name}</p>
-                          <p className="text-[10px] font-mono text-[#8b95a7]">{p.sku}</p>
+                          <p className="truncate font-medium text-[#f8fafc]" title={p.name}>
+                            {p.name}
+                          </p>
+                          <p className="truncate font-mono text-[10px] text-[#8b95a7]" title={p.sku}>
+                            {p.sku}
+                          </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`font-semibold tabular-nums ${p.stock <= 0 ? "text-[#f87171]" : p.stock <= p.lowStockThreshold ? "text-[#f59e0b]" : "text-[#f8fafc]"}`}>
-                        {p.stock}
-                      </span>
+                    <td className="align-middle whitespace-nowrap px-4 py-3 text-right">
+                      <StockValue stock={p.stock} lowStockThreshold={p.lowStockThreshold} />
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-[#f8fafc]">{formatNum(p.salesCount)}</td>
-                    <td className="px-4 py-3 tabular-nums text-[#f8fafc]">{p.dailyAvg.toFixed(1)}</td>
-                    <td className="px-4 py-3 tabular-nums text-[#f8fafc]">
-                      {p.daysCover === Infinity ? (
-                        <span className="text-[#8b95a7]">∞</span>
-                      ) : p.daysCover === 0 ? (
-                        <span className="font-semibold text-[#f87171]">0d</span>
-                      ) : (
-                        `${Math.round(p.daysCover)}d`
-                      )}
+                    <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#f8fafc]">
+                      {formatNum(p.salesCount)}
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-[#8b95a7]">{LEAD_TIME}d</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-md bg-[#d8b84f]/15 px-2 py-1 text-sm font-bold tabular-nums text-[#d8b84f]">
-                        +{p.suggested}
-                      </span>
+                    <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#f8fafc]">
+                      {p.dailyAvg.toFixed(1)}
                     </td>
-                    <td className="px-4 py-3"><StatusBadge status={p.priority} /></td>
+                    <td className="align-middle whitespace-nowrap px-4 py-3 text-right">
+                      <DaysCover daysCover={p.daysCover} />
+                    </td>
+                    <td className="align-middle whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#8b95a7]">
+                      {LEAD_TIME}d
+                    </td>
+                    <td className="align-middle whitespace-nowrap px-4 py-3 text-right">
+                      <SuggestedQty qty={p.suggested} />
+                    </td>
+                    <td className="align-middle whitespace-nowrap px-4 py-3">
+                      <StatusBadge status={p.priority} />
+                    </td>
                   </tr>
                 ))
               )}
@@ -178,12 +260,12 @@ export default function RestockPlanner() {
           </table>
         </div>
 
-        {filtered.length > 10 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
+        {filtered.length > pageSize && (
+          <div className="admin-table-pagination border-t border-[#263145]">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <span className="text-xs font-medium text-[#8b95a7]">
-                Show{" "}
-                <span className="mx-1 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
+                Show data{" "}
+                <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>
                 of {filtered.length}
               </span>
               <div className="w-20">

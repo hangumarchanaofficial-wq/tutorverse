@@ -107,7 +107,7 @@ export default function AttributesList() {
       />
 
       <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e] shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-        <div className="admin-filterbar flex flex-wrap items-end gap-3 border-b border-[#263145] px-4 py-4">
+        <div className="admin-filterbar flex flex-col gap-3 border-b border-[#263145] px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="w-28">
             <Select
               label="Show"
@@ -118,7 +118,7 @@ export default function AttributesList() {
           </div>
           <span className="hidden pb-2 text-xs text-[#8b95a7] sm:inline">entries</span>
 
-          <div className="relative min-w-[200px] flex-1 max-w-md self-end">
+          <div className="relative min-w-0 w-full flex-1 sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b95a7]" />
             <Input
               className="pl-9"
@@ -208,7 +208,7 @@ export default function AttributesList() {
         </div>
 
         {filteredAll.length > 10 && (
-          <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="admin-table-pagination border-t border-[#263145]">
             <span className="text-xs font-medium text-[#8b95a7]">
               Show data{" "}
               <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

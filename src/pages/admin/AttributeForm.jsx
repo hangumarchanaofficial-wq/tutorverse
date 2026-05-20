@@ -89,24 +89,22 @@ export default function AttributeForm() {
 
   return (
     <div className="admin-products-page admin-attribute-form space-y-6">
-      <div className="admin-attribute-form__toolbar sticky top-0 z-20 -mx-4 border-b border-[#263145] bg-[#121b2e]/95 px-4 py-4 backdrop-blur-sm lg:-mx-6 lg:px-6">
-        <PageHeader
-          title="Add Attributes"
-          subtitle="Dashboard · Attributes · Add Attributes"
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to="/admin/attributes">
-                <Btn variant="secondary" size="md">
-                  Cancel
-                </Btn>
-              </Link>
-              <Btn variant="primary" size="md" type="submit" form="attribute-form" disabled={saving}>
-                {saving ? "Saving…" : "Save attribute"}
+      <PageHeader
+        title="Add Attributes"
+        subtitle="Dashboard · Attributes · Add Attributes"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/admin/attributes">
+              <Btn variant="secondary" size="md">
+                Cancel
               </Btn>
-            </div>
-          }
-        />
-      </div>
+            </Link>
+            <Btn variant="primary" size="md" type="submit" form="attribute-form" disabled={saving}>
+              {saving ? "Saving…" : "Save attribute"}
+            </Btn>
+          </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <form id="attribute-form" onSubmit={onSubmit} className={`${panelCls} flex flex-col space-y-5`}>

@@ -291,8 +291,8 @@ export default function ReviewsList() {
       <Tabs tabs={tabs} activeTab={tab} onChange={setTab} />
 
       {/* Search + Sort */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64 min-w-[10rem]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 w-full flex-1 sm:max-w-xs">
           <Input
             placeholder="Search customer, product, comment…"
             value={search}
@@ -431,7 +431,7 @@ export default function ReviewsList() {
           </div>
 
           {filtered.length > 10 && (
-            <div className="flex flex-col gap-3 rounded-xl border border-[#263145] bg-[#121b2e] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="admin-table-pagination rounded-xl border border-[#263145] bg-[#121b2e]">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-medium text-[#8b95a7]">
                   Show{" "}

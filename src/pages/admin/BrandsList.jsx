@@ -1,9 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Layers,
+  Link2,
+  Package,
+  PauseCircle,
   Plus,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -35,6 +40,8 @@ const TABS = [
 ];
 
 const SHOW_OPTIONS = [10, 25, 50].map((n) => ({ value: String(n), label: String(n) }));
+
+const cardIconClass = "h-[18px] w-[18px]";
 
 function BrandAvatar({ brand }) {
   const initial = (brand.name || "?").charAt(0).toUpperCase();
@@ -102,11 +109,33 @@ export default function BrandsList() {
   const kpis = useMemo(() => {
     const linkedProducts = items.reduce((s, b) => s + (b.productCount ?? 0), 0);
     return [
-      { label: "Total Brands", value: formatNum(items.length) },
-      { label: "Active", value: formatNum(tabCounts.active), variant: "success" },
-      { label: "Inactive", value: formatNum(tabCounts.inactive) },
-      { label: "With Products", value: formatNum(items.filter((b) => (b.productCount ?? 0) > 0).length) },
-      { label: "Linked Products", value: formatNum(linkedProducts) },
+      {
+        label: "Total Brands",
+        value: formatNum(items.length),
+        icon: <Layers className={cardIconClass} strokeWidth={2.2} />,
+      },
+      {
+        label: "Active",
+        value: formatNum(tabCounts.active),
+        variant: "success",
+        icon: <BadgeCheck className={cardIconClass} strokeWidth={2.2} />,
+      },
+      {
+        label: "Inactive",
+        value: formatNum(tabCounts.inactive),
+        icon: <PauseCircle className={cardIconClass} strokeWidth={2.2} />,
+      },
+      {
+        label: "With Products",
+        value: formatNum(items.filter((b) => (b.productCount ?? 0) > 0).length),
+        variant: "warning",
+        icon: <Package className={cardIconClass} strokeWidth={2.2} />,
+      },
+      {
+        label: "Linked Products",
+        value: formatNum(linkedProducts),
+        icon: <Link2 className={cardIconClass} strokeWidth={2.2} />,
+      },
     ];
   }, [items, tabCounts]);
 
@@ -146,6 +175,28 @@ export default function BrandsList() {
     setDeleteTarget(null);
   };
 
+  const renderBrandActions = (row) => (
+    <ActionMenu
+      items={[
+        {
+          label: "View brand",
+          onClick: () => toast?.(`Preview: ${row.name}`),
+        },
+        {
+          label: "Edit brand",
+          onClick: () => {
+            window.location.href = "/admin/brands/new";
+          },
+        },
+        {
+          label: "Delete brand",
+          onClick: () => setDeleteTarget(row),
+          danger: true,
+        },
+      ]}
+    />
+  );
+
   return (
     <div className="admin-products-page space-y-6">
       <ConfirmDialog
@@ -175,8 +226,11 @@ export default function BrandsList() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-[#263145] bg-[#121b2e] p-4">
-              <Skeleton className="mb-2 h-3 w-20" />
-              <Skeleton className="h-7 w-12" />
+              <div className="flex items-start justify-between">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-9 w-9 rounded-xl" />
+              </div>
+              <Skeleton className="mt-2 h-7 w-12" />
             </div>
           ))}
         </div>
@@ -225,7 +279,7 @@ export default function BrandsList() {
         </ChartCard>
 
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <Tabs
               tabs={TABS.map((t) => ({ ...t, count: tabCounts[t.id] }))}
               activeTab={tab}
@@ -235,7 +289,7 @@ export default function BrandsList() {
               placeholder="Search brand…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="!w-48"
+              className="min-w-0 w-full sm:!w-48"
             />
             <Btn variant="ghost" size="xs" onClick={() => setSortAsc((s) => !s)}>
               Name: {sortAsc ? "A→Z" : "Z→A"}
@@ -243,15 +297,69 @@ export default function BrandsList() {
           </div>
 
           <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
-            <div className="overflow-x-auto">
-              <table className="admin-table min-w-full text-left text-sm">
+            {/* Mobile: avatar, name, slug, product count, actions */}
+            <ul className="divide-y divide-[#263145]/60 md:hidden">
+              {loading ? (
+                Array.from({ length: 6 }, (_, i) => (
+                  <li key={i} className="flex items-center gap-3 px-4 py-3">
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-3.5 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                    <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+                  </li>
+                ))
+              ) : paged.length === 0 ? (
+                <li className="px-4 py-16 text-center">
+                  <p className="text-sm font-medium text-[#f8fafc]">{emptyMessage(tab)}</p>
+                  <p className="mt-1 text-xs text-[#8b95a7]">Try another tab or clear the search.</p>
+                </li>
+              ) : (
+                paged.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex items-center gap-3 px-4 py-3 transition hover:bg-[#182238]/60"
+                  >
+                    <BrandAvatar brand={row} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-[#f8fafc]" title={row.name}>
+                        {row.name}
+                      </p>
+                      <p className="mt-0.5 truncate font-mono text-xs text-[#8b95a7]" title={row.slug}>
+                        {row.slug}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#8b95a7]">
+                        {(row.productCount ?? 0).toLocaleString()} product
+                        {(row.productCount ?? 0) !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 self-center">
+                      <StatusBadge status={row.status} />
+                      {renderBrandActions(row)}
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+
+            {/* Desktop: full table */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="admin-table w-full min-w-[640px] table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[38%]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
                   <tr>
-                    <th className="min-w-[200px] px-3 py-3 font-medium">Brand</th>
-                    <th className="px-3 py-3 font-medium">Slug</th>
-                    <th className="px-3 py-3 font-medium">Products</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 text-right font-medium">Actions</th>
+                    <th className="px-4 py-3 align-middle font-medium">Brand</th>
+                    <th className="px-4 py-3 align-middle font-medium">Slug</th>
+                    <th className="px-4 py-3 align-middle text-center font-medium">Products</th>
+                    <th className="px-4 py-3 align-middle font-medium">Status</th>
+                    <th className="px-4 py-3 align-middle text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#263145]/60">
@@ -267,37 +375,30 @@ export default function BrandsList() {
                   ) : (
                     paged.map((row) => (
                       <tr key={row.id} className="transition hover:bg-[#182238]/60">
-                        <td className="px-3 py-3">
-                          <div className="flex items-center gap-3">
+                        <td className="align-middle px-4 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
                             <BrandAvatar brand={row} />
-                            <span className="truncate font-medium text-[#f8fafc]">{row.name}</span>
+                            <span className="min-w-0 truncate font-medium text-[#f8fafc]" title={row.name}>
+                              {row.name}
+                            </span>
                           </div>
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs text-[#c1c7d0]">{row.slug}</td>
-                        <td className="px-3 py-3 tabular-nums text-[#c1c7d0]">{row.productCount ?? 0}</td>
-                        <td className="px-3 py-3">
+                        <td className="align-middle px-4 py-3">
+                          <span
+                            className="block truncate font-mono text-xs whitespace-nowrap text-[#c1c7d0]"
+                            title={row.slug}
+                          >
+                            {row.slug}
+                          </span>
+                        </td>
+                        <td className="align-middle px-4 py-3 text-center tabular-nums whitespace-nowrap text-[#c1c7d0]">
+                          {row.productCount ?? 0}
+                        </td>
+                        <td className="align-middle px-4 py-3 whitespace-nowrap">
                           <StatusBadge status={row.status} />
                         </td>
-                        <td className="px-3 py-3 text-right">
-                          <ActionMenu
-                            items={[
-                              {
-                                label: "View brand",
-                                onClick: () => toast?.(`Preview: ${row.name}`),
-                              },
-                              {
-                                label: "Edit brand",
-                                onClick: () => {
-                                  window.location.href = "/admin/brands/new";
-                                },
-                              },
-                              {
-                                label: "Delete brand",
-                                onClick: () => setDeleteTarget(row),
-                                danger: true,
-                              },
-                            ]}
-                          />
+                        <td className="align-middle px-4 py-3 text-right whitespace-nowrap">
+                          <div className="flex justify-end">{renderBrandActions(row)}</div>
                         </td>
                       </tr>
                     ))
@@ -306,9 +407,9 @@ export default function BrandsList() {
               </table>
             </div>
 
-            {filteredAll.length > 10 && (
-              <div className="flex flex-col gap-3 border-t border-[#263145] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
+            {!loading && filteredAll.length > pageSize && (
+              <div className="admin-table-pagination border-t border-[#263145]">
+                <div className="flex flex-wrap items-center justify-center gap-3">
                   <span className="text-xs font-medium text-[#8b95a7]">
                     Show{" "}
                     <span className="mx-1 font-semibold tabular-nums text-[#f8fafc]">{paged.length}</span>

@@ -92,8 +92,8 @@ function ReplyStrip({ onReply }) {
         placeholder="Write your reply…"
         className="w-full resize-y rounded-lg border border-[#263145] bg-[#0f1726] px-3 py-2.5 text-sm text-[#c3cad9] placeholder-[#6b7280] outline-none focus:border-[#d8b84f]/50"
       />
-      <div className="mt-3 flex justify-end">
-        <Btn variant="primary" size="sm" onClick={onReply}>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <Btn variant="primary" size="sm" className="w-full sm:w-auto" onClick={onReply}>
           <Reply className="mr-1.5 inline h-3.5 w-3.5" strokeWidth={2} />
           Send reply
         </Btn>

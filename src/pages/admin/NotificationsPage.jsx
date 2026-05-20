@@ -16,6 +16,7 @@ import {
   Tabs,
   Btn,
   useToast,
+  fmtDate,
   fmtDateTime,
   timeAgo,
 } from "../../admin/components/ui";
@@ -173,7 +174,7 @@ export default function NotificationsPage() {
               return (
                 <li
                   key={n.id}
-                  className={`admin-notification-row flex items-center gap-4 px-5 py-4 transition ${
+                  className={`admin-notification-row flex flex-col gap-3 px-5 py-4 transition sm:flex-row sm:items-center sm:gap-4 ${
                     !n.isRead
                       ? "admin-notification-row--unread border-l-[3px] border-l-[#60a5fa] bg-[#0f1726]/50 pl-[17px]"
                       : "border-l-[3px] border-l-transparent pl-5 hover:bg-[#182238]/60"
@@ -211,7 +212,7 @@ export default function NotificationsPage() {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+                  <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
                     <Btn variant="ghost" size="xs" onClick={() => toggleRead(n.id)}>
                       {n.isRead ? "Mark unread" : "Mark read"}
                     </Btn>
@@ -243,37 +244,51 @@ export default function NotificationsPage() {
             {smsLogs.length} messages
           </span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="admin-table min-w-full text-left text-xs">
-            <thead className="border-b border-[#263145] bg-[#0f1726]">
+        {/* Mobile */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {smsLogs.map((sms) => (
+            <li key={sms.id} className="px-4 py-3 transition hover:bg-[#182238]/60">
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 truncate text-sm font-medium text-[#f8fafc]" title={sms.customerName}>
+                  {sms.customerName}
+                </p>
+                <StatusBadge status={sms.status === "delivered" ? "DELIVERED" : "FAILED"} />
+              </div>
+              <p className="mt-0.5 text-xs text-[#e5e7eb]">{sms.messageType}</p>
+              <p className="mt-1 font-mono text-[11px] text-[#8b95a7]">{sms.phone}</p>
+              <p className="mt-1 text-[10px] tabular-nums text-[#8b95a7]">{fmtDate(sms.createdAt)}</p>
+            </li>
+          ))}
+        </ul>
+
+        {/* Desktop */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="admin-table min-w-full text-left text-sm">
+            <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">
-                  Customer
-                </th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">
-                  Phone
-                </th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">
-                  Message Type
-                </th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">
-                  Status
-                </th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">
-                  Date
-                </th>
+                <th className="px-4 py-3 align-middle font-medium">Customer</th>
+                <th className="px-4 py-3 align-middle font-medium">Phone</th>
+                <th className="px-4 py-3 align-middle font-medium">Message Type</th>
+                <th className="px-4 py-3 align-middle font-medium">Status</th>
+                <th className="px-4 py-3 align-middle font-medium">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#263145]/50">
+            <tbody className="divide-y divide-[#263145]/60">
               {smsLogs.map((sms) => (
                 <tr key={sms.id} className="transition hover:bg-[#182238]/60">
-                  <td className="px-5 py-3 font-medium text-[#f8fafc]">{sms.customerName}</td>
-                  <td className="px-5 py-3 font-mono text-[#8b95a7]">{sms.phone}</td>
-                  <td className="px-5 py-3 text-[#e5e7eb]">{sms.messageType}</td>
-                  <td className="px-5 py-3">
+                  <td className="align-middle px-4 py-3 font-medium text-[#f8fafc]">{sms.customerName}</td>
+                  <td className="align-middle whitespace-nowrap px-4 py-3 font-mono text-xs text-[#8b95a7]">
+                    {sms.phone}
+                  </td>
+                  <td className="align-middle whitespace-nowrap px-4 py-3 text-[#e5e7eb]">
+                    {sms.messageType}
+                  </td>
+                  <td className="align-middle whitespace-nowrap px-4 py-3">
                     <StatusBadge status={sms.status === "delivered" ? "DELIVERED" : "FAILED"} />
                   </td>
-                  <td className="px-5 py-3 tabular-nums text-[#8b95a7]">{fmtDateTime(sms.createdAt)}</td>
+                  <td className="align-middle whitespace-nowrap px-4 py-3 text-xs tabular-nums text-[#8b95a7]">
+                    {fmtDateTime(sms.createdAt)}
+                  </td>
                 </tr>
               ))}
             </tbody>

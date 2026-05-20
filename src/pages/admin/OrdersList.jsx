@@ -235,15 +235,15 @@ export default function OrdersList() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 w-full flex-1 sm:max-w-xs">
           <Input
             placeholder="Search order # or customer…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
             label="Status"
             value={statusFilter}
@@ -251,7 +251,7 @@ export default function OrdersList() {
             options={STATUSES.map((s) => ({ value: s, label: s === "ALL" ? "All Statuses" : s }))}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
             label="Payment"
             value={payStatusFilter}
@@ -259,7 +259,7 @@ export default function OrdersList() {
             options={PAY_STATUSES.map((s) => ({ value: s, label: s === "ALL" ? "All Payments" : s }))}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
             label="Method"
             value={payMethodFilter}
@@ -366,7 +366,7 @@ export default function OrdersList() {
 
       {/* Pagination */}
       {!loading && filtered.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-xl border border-[#263145] bg-[#121b2e] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="admin-table-pagination rounded-xl border border-[#263145] bg-[#121b2e]">
           <span className="text-xs font-medium text-[#8b95a7]">
             Show data{" "}
             <span className="mx-2 font-semibold tabular-nums text-[#f8fafc]">

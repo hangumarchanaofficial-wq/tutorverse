@@ -73,7 +73,9 @@ export default function StoreHealth() {
     const failedRate = totalPayments > 0 ? (failedPayments / totalPayments) * 100 : 0;
 
     const totalReturns = returns.length;
-    const returnRate = totalOrders > 0 ? (totalReturns / totalOrders) * 100 : 0;
+    const ordersWithReturns = new Set(returns.map((r) => String(r.orderId))).size;
+    const returnRate =
+      totalOrders > 0 ? Math.min(100, (ordersWithReturns / totalOrders) * 100) : 0;
 
     const activeProducts = products.filter((p) => p.isActive);
     const lowStockItems = activeProducts.filter((p) => p.stock > 0 && p.stock <= p.lowStockThreshold).length;
@@ -107,7 +109,7 @@ export default function StoreHealth() {
         name: "Return Rate",
         value: returnRate,
         display: `${returnRate.toFixed(1)}%`,
-        detail: `${totalReturns} of ${totalOrders} orders`,
+        detail: `${totalReturns} return${totalReturns === 1 ? "" : "s"} · ${ordersWithReturns} of ${totalOrders} orders`,
         health: getHealthStatus(returnRate, { type: "rate" }),
       },
       {
@@ -167,15 +169,15 @@ export default function StoreHealth() {
   }, [metrics]);
 
   return (
-    <div className="space-y-6">
+    <div className="admin-products-page admin-store-health space-y-6">
       <PageHeader
         title="Store Health"
-        subtitle="Operational health metrics and risk indicators"
+        subtitle="Dashboard · Analytics · Store Health"
         badge={<StatusBadge status={overallHealth} />}
       />
 
       {/* Overall Summary */}
-      <div className={`flex items-center gap-4 rounded-xl border p-4 ${
+      <div className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:gap-4 ${
         overallHealth === "healthy" ? "border-[#34d399]/20 bg-[#34d399]/5" :
         overallHealth === "warning" ? "border-[#f59e0b]/20 bg-[#f59e0b]/5" :
         "border-[#f87171]/20 bg-[#f87171]/5"
@@ -225,17 +227,18 @@ export default function StoreHealth() {
               <span className="text-[11px] text-[#8b95a7]">{m.detail}</span>
               <StatusBadge status={m.health} />
             </div>
-            {/* Health bar */}
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#263145]">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
-                  width: m.id === "avg-rating"
-                    ? `${(m.value / 5) * 100}%`
-                    : m.id === "review-backlog"
-                    ? `${Math.min(100, (m.value / 10) * 100)}%`
-                    : `${Math.min(100, m.value)}%`,
-                  background: m.health === "healthy" ? "#34d399" : m.health === "warning" ? "#f59e0b" : "#f87171",
+                  width:
+                    m.id === "avg-rating"
+                      ? `${(m.value / 5) * 100}%`
+                      : m.id === "review-backlog"
+                        ? `${Math.min(100, (m.value / 10) * 100)}%`
+                        : `${Math.min(100, Math.max(0, m.value))}%`,
+                  background:
+                    m.health === "healthy" ? "#34d399" : m.health === "warning" ? "#f59e0b" : "#f87171",
                 }}
               />
             </div>
@@ -261,33 +264,55 @@ export default function StoreHealth() {
         </div>
       </div>
 
-      {/* Detailed Breakdown */}
-      <div className="rounded-xl border border-[#263145] bg-[#121b2e]">
+      <div className="overflow-hidden rounded-xl border border-[#263145] bg-[#121b2e]">
         <div className="border-b border-[#263145] px-5 py-3">
           <h3 className="text-sm font-bold text-[#f8fafc]">Detailed Breakdown</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-xs">
-            <thead className="border-b border-[#263145] bg-[#0f1726]">
+
+        {/* Mobile */}
+        <ul className="divide-y divide-[#263145]/60 md:hidden">
+          {metrics.map((m) => (
+            <li key={m.id} className="flex gap-3 px-4 py-3 transition hover:bg-[#182238]/60">
+              <HealthMetricIcon metricId={m.id} health={m.health} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-[#f8fafc]">{m.name}</p>
+                  <StatusBadge status={m.health} />
+                </div>
+                <p className="mt-1 font-mono text-sm tabular-nums text-[#f8fafc]">{m.display}</p>
+                <p className="mt-0.5 text-xs text-[#8b95a7]">{m.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {/* Desktop */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="admin-table min-w-full text-left text-sm">
+            <thead className="border-b border-[#263145] bg-[#0f1726] text-[11px] font-semibold uppercase tracking-wider text-[#8b95a7]">
               <tr>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">Metric</th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">Value</th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">Status</th>
-                <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b95a7]">Details</th>
+                <th className="px-4 py-3 align-middle font-medium">Metric</th>
+                <th className="px-4 py-3 align-middle text-right font-medium">Value</th>
+                <th className="px-4 py-3 align-middle font-medium">Status</th>
+                <th className="px-4 py-3 align-middle font-medium">Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#263145]/50">
+            <tbody className="divide-y divide-[#263145]/60">
               {metrics.map((m) => (
-                <tr key={m.id} className="transition hover:bg-[#182238]">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
+                <tr key={m.id} className="transition hover:bg-[#182238]/60">
+                  <td className="align-middle px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <HealthMetricIcon metricId={m.id} health={m.health} size="sm" />
                       <span className="font-medium text-[#f8fafc]">{m.name}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3 font-mono tabular-nums text-[#f8fafc]">{m.display}</td>
-                  <td className="px-5 py-3"><StatusBadge status={m.health} /></td>
-                  <td className="px-5 py-3 text-[#8b95a7]">{m.detail}</td>
+                  <td className="align-middle whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums text-[#f8fafc]">
+                    {m.display}
+                  </td>
+                  <td className="align-middle whitespace-nowrap px-4 py-3">
+                    <StatusBadge status={m.health} />
+                  </td>
+                  <td className="align-middle px-4 py-3 text-[#8b95a7]">{m.detail}</td>
                 </tr>
               ))}
             </tbody>
